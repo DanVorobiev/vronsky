@@ -1,0 +1,98 @@
+
+
+ALIASES_ZNAK:
+  Овен: OVEN
+  Телец: TELEC
+  Близнецы: BLIZNECY
+  Рак: RAK
+  Лев: LEV
+  Дева: DEVA
+  Весы: VESY
+  Стрелец: STRELEC
+  Скорпион: SCORPION
+  Козерог: KOZEROG
+  Водолей: VODOLEY
+  Рыбы: RYBY
+
+
+ALIASES_PLANET:
+  Солнце: SOL
+  Луна: LUNA
+  Мерк: MERCURY
+  Меркурий: MERCURY
+  Венера: VENERA
+  Марс: MARS
+  Юпитер: JUPITER
+  Сатурн: SATURN
+  Уран: URAN
+  Нептун: NEPTUN
+  Плутон: PLUTON
+
+  Хирон: HIRON
+  Селена: SELENA
+  Лилит: LILIT
+  Прозерпина: PROZERPINA
+  Парс: PARS_FORTUNY
+  Вертекс: VERTEX
+
+  # Куспиды домов (парсятся обычно по номерам: 1-й, 2-й и т.п.)
+  1-й: ASC
+  Аcцендент: ASC
+  АСЦ: ASC
+  ASC: ASC
+
+  10-й: MC
+  МС: MC
+  "Середина неба": MC
+  "Сер.неба": MC
+  MC: MC
+
+  4-й: IC
+  IC: IC
+
+  7-й: DSC
+  DSC: DSC
+
+  2-й: SECOND
+  3-й: THIRD
+  5-й: FIFTH
+  6-й: SIXTH
+  8-й: EIGHTH
+  9-й: NINTH
+  11-й: ELEVENTH
+  12-й: TWELVETH
+
+  # Лунные узлы (восходящий/нисходящий)
+  Низх: KARM_NISHOD
+  Нисх: KARM_NISHOD
+  "Нисх.Узел": KARM_NISHOD
+  Восх: KARM_VOSHOD
+  "Восх.Узел": KARM_VOSHOD
+
+  # Add flag to base planet to get retro-planet
+  Ретро: _RETRO
+  R: _RETRO
+
+  Меркурий-R: MERCURY_RETRO
+  Венера-R: VENERA_RETRO
+  Марс-R: MARS_RETRO
+  Юпитер-R: JUPITER_RETRO
+  Сатурн-R: SATURN_RETRO
+  Уран-R: URAN_RETRO
+  Нептун-R: NEPTUN_RETRO
+  Плутон-R: PLUTON_RETRO
+
+  Хирон-R: HIRON_RETRO
+
+
+
+ALIASES_ASPECT:
+  соед: CON
+  полусекст: POLU_SEXT
+  секст: SEXT
+  квад: QUAD
+  трин: TRIN
+  квинк: KVINK
+  опп: OPP
+
+
