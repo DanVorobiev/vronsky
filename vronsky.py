@@ -1,393 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import yaml
-from dataclasses import dataclass, asdict
-import logging
 from pprint import pprint as pretty
-from itertools import combinations
-
-verbose = False
-#verbose = True
-
-PREV_TAG = "PREV"
-
-class ZNAK:
-    _NONE = -1
-    OVEN = 0
-    TELEC = 1
-    BLIZNECY = 2
-    RAK = 3
-    LEV = 4
-    DEVA = 5
-    VESY = 6
-    SCORPION = 7
-    STRELEC = 8
-    KOZEROG = 9
-    VODOLEY = 10
-    RYBY = 11
-
-    _CARDINAL = [OVEN, RAK, VESY, KOZEROG]
-    _FIXED = [TELEC, LEV, SCORPION, VODOLEY]
-    _MUTABLE = [BLIZNECY, DEVA, STRELEC, RYBY]
-
-ZNAK_ALL = [k for k in ZNAK.__dict__.keys() if not k.startswith('_')]
-
-def getZnakType(znak):
-    if znak in ZNAK._CARDINAL:
-        return "Кард"
-    elif znak in ZNAK._FIXED:
-        return "Фикс"
-    elif znak in ZNAK._MUTABLE:
-        return "Мутаб"
-    return "?"
-
-
-class PLANET:
-    _NONE = 0
-    SOL = 1
-    LUNA = 2
-    MERCURY = 3
-    VENERA = 4
-    MARS = 5
-    JUPITER = 6
-    SATURN = 7
-    URAN = 8
-    NEPTUN = 9
-    PLUTON = 10
-
-    HIRON = 11
-    SELENA = 12
-    LILIT = 13
-
-    # Лунные узлы (восходящий/нисходящий)
-    KARM_NISHOD = 14
-    KARM_VOSHOD = 15
-
-    PROZERPINA = 16
-    VERTEX = 17
-    PARS_FORTUNY = 18
-
-    _HOUSE = 21  # 21-32 reserved for house cuspids
-
-    # Add flag to base planet to get retro-planet
-    _RETRO = 1024
-
-    MERCURY_RETRO = MERCURY + _RETRO
-    VENERA_RETRO = VENERA + _RETRO
-    MARS_RETRO = MARS + _RETRO
-    JUPITER_RETRO = JUPITER + _RETRO
-    SATURN_RETRO = SATURN + _RETRO
-    URAN_RETRO = URAN + _RETRO
-    NEPTUN_RETRO = NEPTUN + _RETRO
-    PLUTON_RETRO = PLUTON + _RETRO
-
-    HIRON_RETRO = HIRON + _RETRO
-    PROZERPINA_RETRO = PROZERPINA + _RETRO
-
-    # Add flag to house cuspids (to discriminate them from planets)
-    _HOUSE_FLAG = 128
-    _HOUSE_BASE = _HOUSE_FLAG + _HOUSE - 1
-
-    _FIRST = 1 + _HOUSE_BASE
-    SECOND = 2 + _HOUSE_BASE
-    THIRD = 3 + _HOUSE_BASE
-    _FOURTH = 4 + _HOUSE_BASE
-    FIFTH = 5 + _HOUSE_BASE
-    SIXTH = 6 + _HOUSE_BASE
-    _SEVENTH = 7 + _HOUSE_BASE
-    EIGHTH = 8 + _HOUSE_BASE
-    NINTH = 9 + _HOUSE_BASE
-    _TENTH = 10 + _HOUSE_BASE
-    ELEVENTH = 11 + _HOUSE_BASE
-    TWELVETH = 12 + _HOUSE_BASE
-
-    _HOUSE_FIRST = _FIRST
-    _HOUSE_LAST = TWELVETH
-
-    ASC = _FIRST
-    MC = _TENTH
-    DSC = _SEVENTH
-    IC = _FOURTH
-
-    _KUSPIDS = [ASC, SECOND, THIRD, IC, FIFTH, SIXTH, DSC, EIGHTH, NINTH, MC, ELEVENTH, TWELVETH]
-
-
-PLANET_ALL = [k for k in PLANET.__dict__.keys() if not k.startswith('_')]
-
-
-class ASPECT:
-    CON = 0
-    POLU_SEXT = 30
-    SEXT = 60
-    QUAD = 90
-    TRIN = 120
-    KVINK = 150
-    OPP = 180
-
-    _MINORS = [POLU_SEXT, KVINK]
-
-ASPECT_ALL = [k for k in ASPECT.__dict__.keys() if not k.startswith('_')]
-
-MINOR_ASPECT_ORBIS = 3.0
-LESSER_KUSPID_ORBIS = 2.0
-
-ZNAK_ARC = 30.0
-
-HALF_ARC = 180.0
-FULL_ARC = 360.0
-
-
-class ROLE:
-    _NONE = 0
-    DOMICILE = 1
-    EXALTATION = 2
-    EXILE = 3
-    FALL = 4
-
-    _NAMES = {
-        DOMICILE: 'дом+',
-        EXALTATION: 'экз+',
-        EXILE:'экс-',
-        FALL: 'фалл-'
-    }
-
-ROLE_NAMES = {v:ROLE._NAMES[v] for k, v in ROLE.__dict__.items() if not k.startswith('_')}
-
-
-ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
-
-def toRoman(num):
-    try:
-        return ROMANS[num-1]
-    except:
-        return str(num)
-
-
-class NATAL:
-    DATE_TIME = 'нат'
-    VOSHOD = 'восход'
-    ZAKAT = 'закат'
-
-NATAL_TAGS = dict([(v, k) for k, v in NATAL.__dict__.items() if not k.startswith('_')])
-
-def absGradus(znak, gradus):
-    return znak * ZNAK_ARC + gradus
-
-
-def orb(abs_gradus1, abs_gradus2):
-    diff = abs(abs_gradus1 - abs_gradus2)
-    if diff > HALF_ARC:
-        diff = FULL_ARC - diff
-    return diff
-
-
-def orbz(znak1, gradus1, znak2, gradus2):
-    return orb(absGradus(znak1, gradus1), absGradus(znak2, gradus2))
-
-
-def formatOrb(abs_gradus):
-    gradus = int(abs_gradus)
-    mins_secs = (abs_gradus - gradus) * 60
-    mins = int(mins_secs)
-    secs = round((mins_secs - mins) * 60)
-    return("%d°%02d'%02d\"" % (gradus, mins, secs))
-
-
-class Planet(object):
-    def __init__(self, planet=PLANET._NONE, znak=ZNAK._NONE, gradus=0.0):
-        self.planet = planet
-        self.znak = znak
-        self.gradus = gradus
-        self.abs_gradus = absGradus(znak, gradus)
-
-        # house size (for 1/3 calc)
-        self.size = 0.0
-
-        # in which house, and which 1/3 of the house planet dwells
-        self.house = None
-        self.third = None
-
-        # can be calculated with prev.day gradus (use PREV tag in the beginning of the planet line)
-        self.day_speed = None
-
-        self.speed = ''
-        self.speedBonus = 0
-        self.znakBonus = ''
-
-    def orb(self, planet2):
-        return orbz(self.znak, self.gradus, planet2.znak, planet2.gradus)
-
-    def __str__(self):
-        s = "Planet(%s, %s, %0.3f, abs=%0.3f" % (
-            Config.PLANET_2_NAME.get(self.planet), Config.ZNAK_2_NAME.get(self.znak), self.gradus,
-            absGradus(self.znak, self.gradus))
-        if self.house is not None:
-            s += ', %s дом' % toRoman(self.house - PLANET._HOUSE_BASE)
-            #s += ' [%s/3]' % self.third
-        elif self.size:
-            s += ', size=%0.2f' % (self.size)
-        if self.day_speed is not None:
-            s += ', spd=%s' % formatOrb(self.day_speed)
-        return s + ')'
-
-    def name(self):
-        return Config.PLANET_2_NAME.get(self.planet)
-
-    # get base planet sign, without retrograde component
-    def get_non_retro(self):
-        p = self.planet
-        return p if (p & PLANET._RETRO) == 0 else (p ^ PLANET._RETRO)
-
-    def has_znak_bonus(self):
-        bonus_ranges = Config.ZNAK_BONUS_RANGES.get(self.znak)
-        for (start, end) in bonus_ranges:
-            if start <= self.abs_gradus <= end:
-                return True
-        return False
-
-
-@dataclass
-class AliasConfig:
-    ALIASES_ZNAK: dict
-    ALIASES_PLANET: dict
-    ALIASES_ASPECT: dict
-
-@dataclass
-class VronskyTableConfig:
-    MAJOR_ASPECT_ORBIS: dict
-    AVG_PLANET_SPD: dict
-    CARDINAL_FIXED_MUTABLE_BONUS_RANGE: list
-    ZNAK_DOMINANTS: dict
-    EXALTATION_GRADUS: dict
-
-class Config:
-    NAME_2_PLANET = {}  # {"Солнце": PLANET.SOL(int)}
-    PLANET_2_NAME = {}  # {PLANET.SOL(int): "Солнце"}
-    NAME_2_ZNAK = {}  # {"Овен": ZNAK.OVEN(int)}
-    ZNAK_2_NAME = {}  # {ZNAK.OVEN(int): "Овен"}
-    NAME_2_ASPECT = {}  # {"трин": 120}
-    MAJOR_ORBS = {}  # {SOL: {LUNA: orbis(float)}}
-    AVG_SPD = {}  # {SOL: gradus(float)}
-    ZNAK_BONUS_RANGES = {}  # {ZNAK.OVEN(int): [(0, 12.51), (25.43, 30.0)]}, all cardinal/fixed/mutable bonus arcs.
-    ZNAK_ROLES = {}  # {OVEN: {SOL: EXALTATION}}
-    PLANET_ZNAK_ROLES = {}  # {SOL: {OVEN: EXALTATION}}
-
-    def __init__(self):
-        pass
-
-    @classmethod
-    def readAliases(cls, aliasCfg):
-        for ru_key, name in aliasCfg.ALIASES_ZNAK.items():
-            znak = getattr(ZNAK, name)
-            cls.NAME_2_ZNAK[ru_key] = znak
-            cls.ZNAK_2_NAME[znak] = ru_key
-        for ru_key, name in aliasCfg.ALIASES_PLANET.items():
-            planet = getattr(PLANET, name)
-            cls.NAME_2_PLANET[ru_key] = planet
-            cls.PLANET_2_NAME[planet] = ru_key
-        for ru_key, name in aliasCfg.ALIASES_ASPECT.items():
-            cls.NAME_2_ASPECT[ru_key] = getattr(ASPECT, name)
-
-    @classmethod
-    def readAspectOrbises(cls, vronskyCfg):
-        for planet1_name, planet_2_orbis in vronskyCfg.MAJOR_ASPECT_ORBIS.items():
-            planet1 = cls.NAME_2_PLANET[planet1_name]
-            planet1_dict = cls.MAJOR_ORBS.setdefault(planet1, {})
-            for planet2_name, orbis in planet_2_orbis.items():
-                planet2 = cls.NAME_2_PLANET[planet2_name]
-                planet1_dict[planet2] = orbis
-
-        # Average planet speeds
-        for planet_name, gradus_ in vronskyCfg.AVG_PLANET_SPD.items():
-            if verbose: print("AVG SPD %s %s" % (planet_name, gradus_))
-            planet = cls.NAME_2_PLANET[planet_name]
-            abs_gradus = cls.parse_gradus(gradus_)
-            cls.AVG_SPD[planet] = abs_gradus
-            if verbose: print("AVG SPD %s [%d] = %0.3f (%s)" % (planet_name, planet, abs_gradus, gradus_))
-
-        # CARDINAL_FIXED_MUTABLE_BONUS_RANGE
-        for (znak_type_, start_, end_) in vronskyCfg.CARDINAL_FIXED_MUTABLE_BONUS_RANGE:
-            applicable_signs = getattr(ZNAK, '_' + znak_type_)
-            start_orb = cls.parse_gradus(start_)
-            end_orb = cls.parse_gradus(end_)
-            for znak in applicable_signs:
-                abs_start = absGradus(znak, start_orb)
-                abs_end = absGradus(znak, end_orb)
-                range_list = cls.ZNAK_BONUS_RANGES.setdefault(znak, [])
-                range_list.append((abs_start, abs_end))
-
-        # ZNAK_DOMINANTS
-        for (znak_name, planet_2_role) in vronskyCfg.ZNAK_DOMINANTS.items():
-            znak = cls.NAME_2_ZNAK[znak_name]
-            roles = cls.ZNAK_ROLES.setdefault(znak, {})
-            for planet_name, role_name in planet_2_role.items():
-                planet_id = cls.NAME_2_PLANET[planet_name]
-                role = getattr(ROLE, role_name)
-                roles[planet_id] = role
-                if verbose: print("set znak[%s] planet [%s] %d role = %s" % (znak, planet_name, planet_id, role))
-                planet_znak_roles = cls.PLANET_ZNAK_ROLES.setdefault(planet_id, {})
-                planet_znak_roles[znak] = role
-                if verbose: print("set planet[%s] %d znak[%s] role = %s" % (planet_name, planet_id, znak, role))
-
-    @classmethod
-    def make_planet(self, planet_, znak_, gradus_):
-        planet = self.NAME_2_PLANET.get(planet_)
-        znak = self.NAME_2_ZNAK.get(znak_)
-        gradus = self.parse_gradus(gradus_)
-        if (planet is not None) and (znak is not None) and (gradus is not None):
-            return Planet(planet, znak, gradus)
-        err = "BAD make_planet: %s, %s, %s" % (planet, znak, gradus)
-        print(err)
-        raise BaseException(err)
-        return None
-
-    @classmethod
-    def parse_gradus(self, gradus_):
-        gradus = 0.0
-        rest = gradus_
-        try:
-            g, rest = gradus_.split('°')
-            gradus = float(g)
-        except:
-            pass
-        try:
-            g, rest = gradus_.split('*')
-            gradus = float(g)
-        except:
-            pass
-        # handle minutes & seconds
-        minutes = None
-        try:
-            m, rest = rest.split("'")
-            minutes = float(m)
-        except:
-            pass
-        try:
-            if rest.endswith("'"):
-                minutes = float(rest[:-1])
-        except:
-            pass
-        if verbose: print("min/rest", minutes, repr(rest), gradus)
-        if minutes is not None:
-            gradus += minutes/60.0
-        seconds = None
-        try:
-            if rest.endswith('"'):
-                seconds = float(rest[:-1])
-        except:
-            pass
-        if verbose: print("sec/rest", seconds, repr(rest), gradus)
-        if seconds is not None:
-            gradus += seconds/3600.0
-        return gradus
-
-
-def newline():
-    print('---')
-
-
-def hasGradus(token):
-    return token.find('*') > 0 or token.find('°') > 0
+#from itertools import combinations
+
+from const import *
+import config
+from config import Config
+from planet import Planet
 
 
 class Horoscope:
@@ -482,7 +101,8 @@ class Horoscope:
             if (gradus_ is None) and hasGradus(token):
                 gradus_ = token
         try:
-            p = Config.make_planet(planet_, znak_, gradus_)
+            planet, znak, gradus = Config.make_planet_args(planet_, znak_, gradus_)
+            p = Planet(planet, znak, gradus)
             return p
         except:
             print(elems)
@@ -594,43 +214,35 @@ class Horoscope:
                 p.name(), znakStr, houseStr, p.third, p.speed, p.speedBonus, p.znakBonus))
 
 
+if __name__ == '__main__':
+    config.init()
 
-with open("aliases.yaml", encoding='utf8') as cfg_file:
-    ALIAS_CFG = AliasConfig(**yaml.safe_load(cfg_file))
-if verbose: print(f"ALIAS_CFG: '{ALIAS_CFG}'")
+    cfg = Config()
+    cfg.readAliases(config.ALIAS_CFG)
+    if verbose:
+        print(f"NAME_2_PLANET: '{Config.NAME_2_PLANET}'")
+        print(f"NAME_2_ZNAK: '{Config.NAME_2_ZNAK}'")
+        print(f"NAME_2_ASPECT: '{Config.NAME_2_ASPECT}'")
+        print('NATAL_TAGS:', NATAL_TAGS)
 
-with open("vronsky_tables.yaml", encoding='utf8') as cfg_file:
-    VRONSKY_CFG = VronskyTableConfig(**yaml.safe_load(cfg_file))
-if verbose:
-    print(f"VRONSKY_CFG: '{VRONSKY_CFG}'")
-    pretty(VRONSKY_CFG.ZNAK_DOMINANTS)
+    cfg.readAspectOrbises(config.VRONSKY_CFG)
+    #print("MAJOR ORBISES:")
+    #pretty(cfg.MAJOR_ORBS)
+    if verbose:
+        pretty(Config.ZNAK_BONUS_RANGES)
+        pretty(Config.ZNAK_ROLES)
+        pretty(Config.PLANET_ZNAK_ROLES)
+    print("SOL to LUNA orbis:", cfg.MAJOR_ORBS[PLANET.SOL][PLANET.LUNA], cfg.MAJOR_ORBS[PLANET.LUNA][PLANET.SOL])
 
-cfg = Config()
-cfg.readAliases(ALIAS_CFG)
-if verbose:
-    print(f"NAME_2_PLANET: '{Config.NAME_2_PLANET}'")
-    print(f"NAME_2_ZNAK: '{Config.NAME_2_ZNAK}'")
-    print(f"NAME_2_ASPECT: '{Config.NAME_2_ASPECT}'")
-    print('NATAL_TAGS:', NATAL_TAGS)
+    hor = Horoscope()
 
-cfg.readAspectOrbises(VRONSKY_CFG)
-#print("MAJOR ORBISES:")
-#pretty(cfg.MAJOR_ORBS)
-if verbose:
-    pretty(Config.ZNAK_BONUS_RANGES)
-    pretty(Config.ZNAK_ROLES)
-    pretty(Config.PLANET_ZNAK_ROLES)
-print("SOL to LUNA orbis:", cfg.MAJOR_ORBS[PLANET.SOL][PLANET.LUNA], cfg.MAJOR_ORBS[PLANET.LUNA][PLANET.SOL])
+    #with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
+    with open("data/M.txt", "rt", encoding='utf8') as horoscope_file:
+        for line in horoscope_file:
+            hor.parseLine(line)
 
-hor = Horoscope()
+    hor.calcHouses()
+    hor.findAspects()
+    hor.calcNatals()
 
-#with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-with open("data/M.txt", "rt", encoding='utf8') as horoscope_file:
-    for line in horoscope_file:
-        hor.parseLine(line)
-
-hor.calcHouses()
-hor.findAspects()
-hor.calcNatals()
-
-hor.printoutPlanets()
+    hor.printoutPlanets()
