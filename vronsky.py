@@ -6,7 +6,7 @@ from pprint import pprint as pretty
 from const import *
 import config
 from config import Config
-from planet import Planet, BONUS
+from planet import Planet
 
 
 class Horoscope:
@@ -87,6 +87,49 @@ class Horoscope:
             self.natHour = int(fHour) + 1
             print("DAY BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour, fHour, minsNat - minsVoshod, minsTotal))
 
+        # доминант года рождения
+        day, month, year = self.natDate
+        planet_id = Config.get_year_dominant(year)
+        planet = self.planets.get(planet_id) or self.planets.get(planet_id + PLANET._RETRO)
+        planet.set_bonus(BONUS.YEAR_DOMINANT, Config.BONUS_POINTS['YEAR_DOMINANT'])
+
+        # доминант дня рождения (этого дня недели)
+        import datetime
+        weekday = datetime.date(year=year, month=month, day=day).weekday()
+        planet_id = Config.get_weekday_dominant(weekday)
+        planet = self.planets.get(planet_id) or self.planets.get(planet_id + PLANET._RETRO)
+        planet.set_bonus(BONUS.WEEKDAY_DOMINANT, Config.BONUS_POINTS['WEEKDAY_DOMINANT'])
+
+        # доминант рождения (ASC)
+        self.hasASCDominant = False
+        asc_pids = set()
+        asc = self.planets.get(PLANET.ASC)
+        planet_roles = Config.ZNAK_ROLES[asc.znak]
+        for pid, role in planet_roles.items():
+            if role == ROLE.DOMICILE:
+                planet = self.planets.get(pid)
+                asc_pids.add(pid)
+                if planet is not None:
+                    planet.set_bonus(BONUS.ASC_DOMINANT, Config.BONUS_POINTS['ASC_DOMINANT'])
+                    self.hasASCDominant = True
+        if not self.hasASCDominant: print("(!) NOTE: Нет доминанта ASC (%s)" % str(
+            [Config.PLANET_2_NAME[pid] for pid in list(asc_pids)]))
+
+        # доминант MC
+        self.hasMCDominant = False
+        mc = self.planets.get(PLANET.MC)
+        mc_pids = set()
+        planet_roles = Config.ZNAK_ROLES[mc.znak]
+        for pid, role in planet_roles.items():
+            if role == ROLE.DOMICILE:
+                mc_pids.add(pid)
+                planet = self.planets.get(pid)
+                if planet is not None:
+                    planet.set_bonus(BONUS.MC_DOMINANT, Config.BONUS_POINTS['MC_DOMINANT'])
+                    self.hasMCDominant = True
+        if not self.hasMCDominant: print("NOTE: Нет доминанта MC (%s)" % str(
+            [Config.PLANET_2_NAME[pid] for pid in list(mc_pids)]))
+
     def _parsePlanet(self, line):
         if not hasGradus(line):
             return
@@ -119,7 +162,7 @@ class Horoscope:
         if prev is None:
             return
         if verbose: print("PREV:", prev)
-        p = self.planets.get(prev.planet)
+        p = self.planets.get(prev.planet) or self.planets.get(prev.planet + PLANET._RETRO)
 
         # скорость за день (сравниваем со средней угловой скоростью, табличной)
         pnr = p.get_non_retro()
@@ -132,28 +175,8 @@ class Horoscope:
             else:
                 p.set_bonus(BONUS.SPEED, Config.BONUS_POINTS['FAST_SPEED'])
 
-        # в каком типе знака (кардинальный, фиксированный, мутабельный) - там свои бонусы по отдельным дугам
-        znak_bonus_type = Planet.get_znak_bonus_type(p.znak)
-        if p.has_znak_bonus():
-            p.set_bonus(znak_bonus_type, Config.BONUS_POINTS['CARD_ZNAK_BONUS'])
-        znakBonusStr = p.get_bonus_str(())
-
-        planet_attrs = Config.PLANET_ATTRS.get(pnr)
-        if planet_attrs:
-            if (planet_attrs.stihia >= 0) and (planet_attrs.stihia == ZNAK._stihia(p.znak)):
-                # в знаке своей стихии (огонь, вода и т.п.)
-                p.set_bonus(BONUS.STIHIA, Config.BONUS_POINTS['OWN_STIHIA'])
-
-            if (planet_attrs.gender >= 0):
-                if (planet_attrs.gender == ZNAK._gender(p.znak)):
-                    # в знаке своего пола
-                    p.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['OWN_GENDER'])
-                else:
-                    # в знаке противоположногно пола
-                    p.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['WRONG_GENDER'])
-
-        print("day SPEED: %s (%s) avg:%s %s %s [%s]" % (formatOrb(p.day_speed), speedStr,
-                                                        formatOrb(avg_spd or 0), p, prev, znakBonusStr))
+        print("day SPEED: %s (%s) avg:%s %s %s" % (formatOrb(p.day_speed), speedStr,
+                                                   formatOrb(avg_spd or 0), p, prev))
 
     def calcHouses(self):
         newline()
@@ -188,6 +211,36 @@ class Horoscope:
                     if role == ROLE.DOMICILE:
                         planet.set_bonus(BONUS.OWN_HOUSE, Config.BONUS_POINTS['OWN_HOUSE'])
 
+                    # в ретрограде
+                    if planet.planet & PLANET._RETRO:
+                        planet.set_bonus(BONUS.RETRO, Config.BONUS_POINTS['RETRO'])
+
+                    # в каком типе знака (кардинальный, фиксированный, мутабельный) - там свои бонусы по отдельным дугам
+                    znak_bonus_type = Planet.get_znak_bonus_type(planet.znak)
+                    if planet.has_znak_bonus():
+                        planet.set_bonus(znak_bonus_type, Config.BONUS_POINTS['CARD_ZNAK_BONUS'])
+
+                    # особые диапазоны градусов (в Тельце, Льве, Деве, комбуста..)
+                    for bonus_key, (gradus1, gradus2) in Config.BONUS_GRADUS.items():
+                        if gradus1 <= planet.abs_gradus <= gradus2:
+                            bonus_type = getattr(BONUS, bonus_key)
+                            planet.set_bonus(bonus_type, Config.BONUS_POINTS[bonus_key])
+
+                    pnr = planet.get_non_retro()
+                    planet_attrs = Config.PLANET_ATTRS.get(pnr)
+                    if planet_attrs:
+                        if (planet_attrs.stihia >= 0) and (planet_attrs.stihia == ZNAK._stihia(planet.znak)):
+                            # в знаке своей стихии (огонь, вода и т.п.)
+                            planet.set_bonus(BONUS.STIHIA, Config.BONUS_POINTS['OWN_STIHIA'])
+
+                        if (planet_attrs.gender >= 0):
+                            if (planet_attrs.gender == ZNAK._gender(planet.znak)):
+                                # в знаке своего пола
+                                planet.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['OWN_GENDER'])
+                            else:
+                                # в знаке противоположногно пола
+                                planet.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['WRONG_GENDER'])
+
                     roleStr = ''
                     role = Config.ZNAK_ROLES[planet.znak].get(planet.planet)
                     if role is not None:
@@ -207,7 +260,7 @@ class Horoscope:
     def findAspects(self):
         self.aspects = []
         planets = self.planets.values()
-        aspects = Config.NAME_2_ASPECT.items()
+        aspects = ASPECT_VALUES
         last_planet = None
         for p1 in planets:
             for p2 in planets:
@@ -223,14 +276,24 @@ class Horoscope:
                 if table_orbis is None:
                     if verbose: print("--- BAD orbis:", p1, p2, table_orbis)
                     continue
-                for aname, aspect in aspects:
+                for aspect in ASPECT_VALUES:
+                    aname = Config.ASPECT_2_NAME[aspect]
                     # minor aspects are 3.0 for planets (but could be less for kuspids etc.)
                     orbis = table_orbis if aspect not in ASPECT._MINORS else min(table_orbis, MINOR_ASPECT_ORBIS)
-                    if abs(arc - aspect) < orbis:
+                    actual_orbis = abs(arc - aspect)
+                    if actual_orbis < orbis:
                         self.aspects.append((p1, p2, aspect))
                         if p1 != last_planet: newline()
                         print("ASPECT: %s %s %s %d %0.3f %0.1f" % (p1.name(), aname, p2.name(), aspect, arc, orbis))
                         last_planet = p1
+                        self.checkAspectBonus(p1, p2, aspect, actual_orbis)
+
+    def checkAspectBonus(self, p1, p2, aspect, actual_orbis):
+        for bonus in Config.BONUS_ASPECTS:
+            if ((aspect == bonus.aspect) and (p2.planet in bonus.to_planets) and (p1.planet in bonus.planet_mask)):
+                if ((bonus.from_orbis < 0) or (bonus.from_orbis <= actual_orbis <= bonus.to_orbis)):
+                    print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2)
+                    p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
 
     def printoutPlanets(self):
         "Уран; Рыбы 4*39';	II;	3/3; FAST; 2"
@@ -250,7 +313,7 @@ class Horoscope:
             bonusSum = p.sum_bonuses()
             bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
 
-            print("%-10s; %-28s; %4s; %-4s; %4s; %3d;      %50s;      %4s" % (
+            print("%-10s; %-30s; %4s; %-4s; %4s; %3d;      %80s;      %4s" % (
                 p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses, bonusSumStr))
 
 
@@ -277,8 +340,8 @@ if __name__ == '__main__':
 
     hor = Horoscope()
 
-    #with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-    with open("data/D.txt", "rt", encoding='utf8') as horoscope_file:
+    with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
+    # with open("data/M.txt", "rt", encoding='utf8') as horoscope_file:
         for line in horoscope_file:
             hor.parseLine(line)
 

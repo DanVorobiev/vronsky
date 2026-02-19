@@ -24,6 +24,11 @@ class VronskyTableConfig:
     EXALTATION_GRADUS: dict
     PLANET_ATTRS: dict
     BONUS_POINTS: dict
+    WEEKDAY_DOMINANTS: dict
+    YEAR_DOMINANTS: dict
+    BONUS_GRADUS: dict
+    PLANET_MASKS: dict
+    BONUS_ASPECTS: list
 
 @dataclass
 class PlanetAttrs:
@@ -31,6 +36,15 @@ class PlanetAttrs:
     stihia: int
     is_evil: bool
 
+@dataclass
+class BonusAspect:
+    planet_mask: list
+    aspect: int
+    to_planets: list
+    from_orbis: float
+    to_orbis: float
+    bonus_type: str
+    bonus_points: int
 
 class Config:
     NAME_2_PLANET = {}  # {"Солнце": SOL}
@@ -38,6 +52,7 @@ class Config:
     NAME_2_ZNAK = {}  # {"Овен": OVEN(0)}
     ZNAK_2_NAME = {}  # {OVEN(0): "Овен"}
     NAME_2_ASPECT = {}  # {"трин": 120}
+    ASPECT_2_NAME = {}  # {120: "трин"}
     MAJOR_ORBS = {}  # {SOL: {LUNA: orbis(float)}}
     AVG_SPD = {}  # {SOL: gradus(float)}
     ZNAK_BONUS_RANGES = {}  # {OVEN: [(0, 12.51), (25.43, 30.0)]}, all cardinal/fixed/mutable bonus arcs.
@@ -49,6 +64,11 @@ class Config:
     STIHIA_2_NAME = {}  # {FIRE: "огонь"}
     PLANET_ATTRS = {}  # {SOL: PlanetAttrs}
     BONUS_POINTS = {}  # {BONUS.NAME: +/-value}
+    WEEKDAY_DOMINANTS = {}  # {(weekday % 7): planet}
+    YEAR_DOMINANTS = {}  # {(year % 7): planet}
+    BONUS_GRADUS = {}
+    NAME_2_PLANET_MASK = {}
+    BONUS_ASPECTS = []
 
     def __init__(self):
         pass
@@ -64,7 +84,8 @@ class Config:
             cls.NAME_2_PLANET[ru_key] = planet
             cls.PLANET_2_NAME[planet] = ru_key
         for ru_key, name in aliasCfg.ALIASES_ASPECT.items():
-            cls.NAME_2_ASPECT[ru_key] = getattr(ASPECT, name)
+            cls.NAME_2_ASPECT[ru_key] = val = getattr(ASPECT, name)
+            cls.ASPECT_2_NAME[val] = ru_key
         for ru_key, name in aliasCfg.ALIASES_GENDER.items():
             val = getattr(GENDER, name)
             cls.NAME_2_GENDER[ru_key] = val
@@ -125,6 +146,58 @@ class Config:
             cls.PLANET_ATTRS[planet_id] = planet_attrs
 
         cls.BONUS_POINTS = vronskyCfg.BONUS_POINTS
+
+        # {(weekday % 7): planet}
+        # i.e. {0: MOON}
+        cls.WEEKDAY_DOMINANTS = {k:cls.NAME_2_PLANET[v] for k, v in vronskyCfg.WEEKDAY_DOMINANTS.items()}
+        if verbose: pretty(['WEEKDAY_DOMINANTS', cls.WEEKDAY_DOMINANTS])
+
+        # {(year % 7): planet}
+        cls.YEAR_DOMINANTS = {(y % 7):cls.NAME_2_PLANET[v] for y, v in vronskyCfg.YEAR_DOMINANTS.items()}
+        if verbose: pretty(['YEAR_DOMINANTS', cls.YEAR_DOMINANTS])
+
+        # BONUS_GRADUS
+        cls.BONUS_GRADUS = {}
+        for bonus_key, range_pairs in vronskyCfg.BONUS_GRADUS.items():
+            (znak1_, gradus1_), (znak2_, gradus2_) = range_pairs
+            znak1, znak2 = cls.NAME_2_ZNAK[znak1_], cls.NAME_2_ZNAK[znak2_]
+            gradus1, gradus2 = cls.parse_gradus(gradus1_), cls.parse_gradus(gradus2_)
+            assert getattr(BONUS, bonus_key)
+            cls.BONUS_GRADUS[bonus_key] = (absGradus(znak1, gradus1), absGradus(znak2, gradus2))
+        if verbose: pretty(['cfg.BONUS_GRADUS', vronskyCfg.BONUS_GRADUS])
+        if verbose: pretty(['BONUS_GRADUS', cls.BONUS_GRADUS])
+
+        cls.NAME_2_PLANET_MASK = {}
+        for ru_key, mask_name in vronskyCfg.PLANET_MASKS.items():
+            planet_set = getattr(PLANET_MASK, mask_name)
+            cls.NAME_2_PLANET_MASK[ru_key] = planet_set
+        if verbose: pretty(['cfg.PLANET_MASKS', vronskyCfg.PLANET_MASKS])
+        if verbose: pretty(['NAME_2_PLANET_MASK', cls.NAME_2_PLANET_MASK])
+
+        cls.BONUS_ASPECTS = []
+        for (mask_, planet_, aspect_, from_, to_, bonus_points) in vronskyCfg.BONUS_ASPECTS:
+            if verbose: print('BONUS_ASPECT:', (mask_, aspect_, planet_, from_, to_, bonus_points))
+            mask = cls.NAME_2_PLANET_MASK.get(mask_)
+            aspect = cls.NAME_2_ASPECT.get(aspect_)
+            pid = cls.NAME_2_PLANET.get(planet_)
+            from_orbis = -1 if (from_ == '-') else cls.parse_gradus(from_)
+            to_orbis = -1 if (from_ == '-') else cls.parse_gradus(to_)
+            bonus_type = "%s(%s)" % (aspect_, planet_[:1])
+            cls.BONUS_ASPECTS.append(BonusAspect(
+                planet_mask=mask, aspect=aspect, to_planets=[pid, pid ^ PLANET._RETRO],
+                from_orbis=from_orbis, to_orbis=to_orbis, bonus_type=bonus_type, bonus_points=bonus_points
+            ))
+        if verbose: pretty(['cfg.BONUS_ASPECTS', vronskyCfg.BONUS_ASPECTS])
+        if verbose: pretty(['BONUS_ASPECTS', cls.BONUS_ASPECTS])
+
+
+    @classmethod
+    def get_year_dominant(self, year):
+        return self.YEAR_DOMINANTS[year % 7]
+
+    @classmethod
+    def get_weekday_dominant(self, weekday):
+        return self.WEEKDAY_DOMINANTS[weekday % 7]
 
     @classmethod
     def make_planet_args(self, planet_, znak_, gradus_):

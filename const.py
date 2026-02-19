@@ -121,8 +121,18 @@ class PLANET:
 
     _KUSPIDS = [ASC, SECOND, THIRD, IC, FIFTH, SIXTH, DSC, EIGHTH, NINTH, MC, ELEVENTH, TWELVETH]
 
+    _MERCURIES = {MERCURY, MERCURY_RETRO}
+    _ANY_EVIL = {MARS, MARS_RETRO, SATURN, SATURN_RETRO, URAN, URAN_RETRO, PLUTON, PLUTON_RETRO}
 
 PLANET_ALL = [k for k in PLANET.__dict__.keys() if not k.startswith('_')]
+
+
+class PLANET_MASK:
+    MERCURIES = PLANET._MERCURIES
+    ANY_EVIL = PLANET._ANY_EVIL
+    ANY = {v for k, v in PLANET.__dict__.items() if not k.startswith('_')}
+    ANY_GOOD = ANY - ANY_EVIL
+    ANY_GOOD_EXCEPT_MERC = ANY_GOOD - MERCURIES
 
 
 class ASPECT:
@@ -134,9 +144,13 @@ class ASPECT:
     KVINK = 150
     OPP = 180
 
-    _MINORS = [POLU_SEXT, KVINK]
+    _OCTIL = 45
+    _SESQUIQ = 135
+
+    _MINORS = [POLU_SEXT, KVINK, _OCTIL, _SESQUIQ]
 
 ASPECT_ALL = [k for k in ASPECT.__dict__.keys() if not k.startswith('_')]
+ASPECT_VALUES = [v for k,v in ASPECT.__dict__.items() if not k.startswith('_')]
 
 MINOR_ASPECT_ORBIS = 3.0
 LESSER_KUSPID_ORBIS = 2.0
@@ -202,5 +216,31 @@ def newline():
 
 def hasGradus(token):
     return token.find('*') > 0 or token.find('°') > 0
+
+
+class BONUS:
+    SPEED = 'spd'
+    CARDINAL_ZNAK = 'кард'
+    FIXED_ZNAK = 'фикс'
+    MUTABLE_ZNAK = 'мутаб'
+    GENDER = 'пол'
+    STIHIA = 'стихия'  # в знаке своего стихийного тригона (напр. огонь для Солнца/Марса/Юпитера)
+    OWN_HOUSE = 'свой.дом'  # в своём поле (default доме, считая от равноденствия - напр. Марс в I доме = Овен (управ.Марс)
+    DOMICILE = 'домицил'
+    EXALTATION = 'экзальт'
+    EXILE = 'эксиль'
+    FALL = 'фалл'
+    YEAR_DOMINANT = 'дом.года'
+    WEEKDAY_DOMINANT = 'дом.дня'
+    ASC_DOMINANT = 'дом.ASC'
+    MC_DOMINANT = 'дом.MC'
+    RETRO = 'ретро'
+    LEV_GRADUS = '25*30*Лев'
+    VESY_GRADUS = '18*25*Весы'
+    TELEC_GRADUS = '22*26*Тел'
+    KOMBUSTA = 'комбуста'
+
+    _ZNAK_BONUS_TYPES = (CARDINAL_ZNAK, MUTABLE_ZNAK, FIXED_ZNAK)
+    _HOUSE_ROLES = (DOMICILE, EXALTATION, EXILE, FALL)
 
 

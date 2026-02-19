@@ -4,23 +4,6 @@ from const import *
 from config import Config
 
 
-class BONUS:
-    SPEED = 'spd'
-    CARDINAL_ZNAK = 'кард'
-    FIXED_ZNAK = 'фикс'
-    MUTABLE_ZNAK = 'мутаб'
-    GENDER = 'пол'
-    STIHIA = 'стихия'  # в знаке своего стихийного тригона (напр. огонь для Солнца/Марса/Юпитера)
-    OWN_HOUSE = 'свой.дом'  # в своём поле (default доме, считая от равноденствия - напр. Марс в I доме = Овен (управ.Марс)
-    DOMICILE = 'домицил'
-    EXALTATION = 'экзальт'
-    EXILE = 'эксиль'
-    FALL = 'фалл'
-
-    _ZNAK_BONUS_TYPES = (CARDINAL_ZNAK, MUTABLE_ZNAK, FIXED_ZNAK)
-    _HOUSE_ROLES = (DOMICILE, EXALTATION, EXILE, FALL)
-
-
 class Planet(object):
     def __init__(self, planet=PLANET._NONE, znak=ZNAK._NONE, gradus=0.0):
         self.planet = planet
