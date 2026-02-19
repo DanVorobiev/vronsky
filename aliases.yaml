@@ -64,14 +64,16 @@ ALIASES_PLANET:
 
   # Лунные узлы (восходящий/нисходящий)
   Низх: KARM_NISHOD
+  Низх.: KARM_NISHOD
   Нисх: KARM_NISHOD
   "Нисх.Узел": KARM_NISHOD
   Восх: KARM_VOSHOD
+  Восх.: KARM_VOSHOD
   "Восх.Узел": KARM_VOSHOD
 
   # Add flag to base planet to get retro-planet
   Ретро: _RETRO
-  R: _RETRO
+  RETRO: _RETRO
 
   Меркурий-R: MERCURY_RETRO
   Венера-R: VENERA_RETRO
@@ -83,7 +85,7 @@ ALIASES_PLANET:
   Плутон-R: PLUTON_RETRO
 
   Хирон-R: HIRON_RETRO
-
+  Прозерпина-R: PROZERPINA_RETRO
 
 
 ALIASES_ASPECT:

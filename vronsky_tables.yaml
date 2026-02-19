@@ -310,3 +310,185 @@ MAJOR_ASPECT_ORBIS:
     Вертекс: 5.5
     ASC: 5.5
     MC: 5.5
+
+
+AVG_PLANET_SPD:
+  Солнце: 59'08"
+  Луна: 12°58'
+  Меркурий: 1°19'
+  Венера: 1°13'
+  Марс: 38'00"
+  Юпитер: 4'59"
+  Сатурн: 3'49"
+  Уран: 3'00"
+  Нептун: 1'40"
+  Плутон: 0'48"
+  Хирон: 1'10"
+  Восх: 3'11"
+  Нисх: 3'11"
+
+
+CARDINAL_FIXED_MUTABLE_BONUS_RANGE:
+  - ["CARDINAL", "0°", "12°51'"]
+  - ["CARDINAL", "25°43'", "30°"]
+  - ["FIXED", "8°34′", "21°26′"]
+  - ["MUTABLE", "4°17′", "17°09′"]
+
+
+EXALTATION_GRADUS:
+  Солнце:
+    - Овен
+    - 20
+  Луна:
+    - Телец
+    - 4
+  Меркурий:
+    - Дева
+    - 16
+  Венера:
+    - Рыбы
+    - 28
+  Марс:
+    - Козерог
+    - 29
+  Юпитер:
+    - Рак
+    - 16
+  Сатурн:
+    - Весы
+    - 21
+  Хирон:
+    - Рыбы
+    - 8
+  Уран:
+    - Дева
+    - 23
+  Нептун:
+    - Рак
+    - 20
+  Плутон:
+    - Лев
+    - 23
+  Прозерпина:
+    - Близнецы
+    - 5
+  Восх:
+    - Стрелец
+    - 4
+  Нисх:
+    - Близнецы
+    - 4
+
+
+ZNAK_DOMINANTS:
+  Овен:
+    Марс: DOMICILE
+    Плутон-R: DOMICILE
+    Солнце: EXALTATION
+    Венера: EXILE
+    Хирон-R: EXILE
+    Сатурн: FALL
+    Уран-R: FALL
+
+  Телец:
+    Венера-R: DOMICILE
+    Хирон: DOMICILE
+    Луна: EXALTATION
+    Марс-R: EXILE
+    Плутон: EXILE
+    Сатурн-R: FALL
+    Уран: FALL
+
+  Близнецы:
+    Меркурий-R: DOMICILE
+    Прозерпина-R: DOMICILE
+    Меркурий: EXALTATION
+    Прозерпина: EXALTATION
+    Восх.Узел: EXALTATION
+    Юпитер: EXILE
+    Нептун-R: EXILE
+    Нисх.Узел: FALL
+
+  Рак:
+    Луна: DOMICILE
+    Юпитер: EXALTATION
+    Нептун-R: EXALTATION
+    Сатурн: EXILE
+    Уран-R: EXILE
+    Марс: FALL
+    Плутон-R: FALL
+
+  Лев:
+    Солнце: DOMICILE
+    Марс-R: EXALTATION
+    Плутон: EXALTATION
+    Сатурн-R: EXILE
+    Уран: EXILE
+    Юпитер-R: FALL
+    Нептун: FALL
+
+  Дева:
+    Меркурий: DOMICILE
+    Прозерпина: DOMICILE
+    Меркурий-R: EXALTATION
+    Прозерпина-R: EXALTATION
+    Юпитер-R: EXILE
+    Нептун: EXILE
+    Венера: FALL
+    Хирон-R: FALL
+
+  Весы:
+    Венера: DOMICILE
+    Хирон-R: DOMICILE
+    Сатурн: EXALTATION
+    Уран-R: EXALTATION
+    Марс: EXILE
+    Плутон-R: EXILE
+    Солнце: FALL
+
+  Скорпион:
+    Марс-R: DOMICILE
+    Плутон: DOMICILE
+    Сатурн-R: EXALTATION
+    Уран: EXALTATION
+    Венера-R: EXILE
+    Хирон: EXILE
+    Луна: FALL
+
+  Стрелец:
+    Юпитер: DOMICILE
+    Нептун-R: DOMICILE
+    Нисх.Узел: EXALTATION
+    Меркурий-R: EXILE
+    Прозерпина-R: EXILE
+    Меркурий: FALL
+    Прозерпина: FALL
+    Восх.Узел: FALL
+
+  Козерог:
+    Сатурн: DOMICILE
+    Уран-R: DOMICILE
+    Марс: EXALTATION
+    Плутон-R: EXALTATION
+    Луна: EXILE
+    Юпитер: FALL
+    Нептун-R: FALL
+
+  Водолей:
+    Сатурн-R: DOMICILE
+    Уран: DOMICILE
+    Юпитер-R: EXALTATION
+    Нептун: EXALTATION
+    Солнце: EXILE
+    Марс-R: FALL
+    Плутон: FALL
+
+  Рыбы:
+    Юпитер-R: DOMICILE
+    Нептун: DOMICILE
+    Венера: EXALTATION
+    Хирон-R: EXALTATION
+    Меркурий: EXILE
+    Прозерпина: EXILE
+    Меркурий-R: FALL
+    Прозерпина-R: FALL
