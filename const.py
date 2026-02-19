@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#verbose = False
-verbose = True
+verbose = False
+#verbose = True
 
 PREV_TAG = "PREV"
+
+
+class GENDER:
+    NEUTRAL = -1
+    MALE = 0
+    FEMALE = 1
+
+
+class STIHIA:
+    NONE = -1
+    FIRE = 0
+    EARTH = 1
+    AIR = 2
+    WATER = 3
+
 
 class ZNAK:
     _NONE = -1
@@ -25,16 +40,16 @@ class ZNAK:
     _FIXED = [TELEC, LEV, SCORPION, VODOLEY]
     _MUTABLE = [BLIZNECY, DEVA, STRELEC, RYBY]
 
-ZNAK_ALL = [k for k in ZNAK.__dict__.keys() if not k.startswith('_')]
+    @staticmethod
+    def _gender(znak):
+        return (znak % 2)  # 0: GENDER.MALE, 1: GENDER.FEMALE
 
-def getZnakType(znak):
-    if znak in ZNAK._CARDINAL:
-        return "Кард"
-    elif znak in ZNAK._FIXED:
-        return "Фикс"
-    elif znak in ZNAK._MUTABLE:
-        return "Мутаб"
-    return "?"
+    @staticmethod
+    def _stihia(znak):
+        return (znak % 4)  # 0: FIRE, 1: EARTH, 2: AIR, 3: WATER
+
+
+ZNAK_ALL = [k for k in ZNAK.__dict__.keys() if not k.startswith('_')]
 
 
 class PLANET:
@@ -139,14 +154,7 @@ class ROLE:
     EXILE = 3
     FALL = 4
 
-    _NAMES = {
-        DOMICILE: 'дом+',
-        EXALTATION: 'экз+',
-        EXILE:'экс-',
-        FALL: 'фалл-'
-    }
-
-ROLE_NAMES = {v:ROLE._NAMES[v] for k, v in ROLE.__dict__.items() if not k.startswith('_')}
+ROLE_KEYS = {v:k for k, v in ROLE.__dict__.items() if not k.startswith('_')}
 
 
 ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']

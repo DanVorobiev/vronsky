@@ -12,6 +12,8 @@ class AliasConfig:
     ALIASES_ZNAK: dict
     ALIASES_PLANET: dict
     ALIASES_ASPECT: dict
+    ALIASES_GENDER: dict
+    ALIASES_DOMAIN: dict
 
 @dataclass
 class VronskyTableConfig:
@@ -20,19 +22,33 @@ class VronskyTableConfig:
     CARDINAL_FIXED_MUTABLE_BONUS_RANGE: list
     ZNAK_DOMINANTS: dict
     EXALTATION_GRADUS: dict
+    PLANET_ATTRS: dict
+    BONUS_POINTS: dict
+
+@dataclass
+class PlanetAttrs:
+    gender: int
+    stihia: int
+    is_evil: bool
 
 
 class Config:
-    NAME_2_PLANET = {}  # {"Солнце": PLANET.SOL(int)}
-    PLANET_2_NAME = {}  # {PLANET.SOL(int): "Солнце"}
-    NAME_2_ZNAK = {}  # {"Овен": ZNAK.OVEN(int)}
-    ZNAK_2_NAME = {}  # {ZNAK.OVEN(int): "Овен"}
+    NAME_2_PLANET = {}  # {"Солнце": SOL}
+    PLANET_2_NAME = {}  # {SOL: "Солнце"}
+    NAME_2_ZNAK = {}  # {"Овен": OVEN(0)}
+    ZNAK_2_NAME = {}  # {OVEN(0): "Овен"}
     NAME_2_ASPECT = {}  # {"трин": 120}
     MAJOR_ORBS = {}  # {SOL: {LUNA: orbis(float)}}
     AVG_SPD = {}  # {SOL: gradus(float)}
-    ZNAK_BONUS_RANGES = {}  # {ZNAK.OVEN(int): [(0, 12.51), (25.43, 30.0)]}, all cardinal/fixed/mutable bonus arcs.
+    ZNAK_BONUS_RANGES = {}  # {OVEN: [(0, 12.51), (25.43, 30.0)]}, all cardinal/fixed/mutable bonus arcs.
     ZNAK_ROLES = {}  # {OVEN: {SOL: EXALTATION}}
     PLANET_ZNAK_ROLES = {}  # {SOL: {OVEN: EXALTATION}}
+    NAME_2_GENDER = {}  # {"м": MALE(0)}
+    GENDER_2_NAME = {}  # {MALE: "м"}
+    NAME_2_STIHIA = {}  # {"огонь": FIRE(0)}
+    STIHIA_2_NAME = {}  # {FIRE: "огонь"}
+    PLANET_ATTRS = {}  # {SOL: PlanetAttrs}
+    BONUS_POINTS = {}  # {BONUS.NAME: +/-value}
 
     def __init__(self):
         pass
@@ -49,6 +65,14 @@ class Config:
             cls.PLANET_2_NAME[planet] = ru_key
         for ru_key, name in aliasCfg.ALIASES_ASPECT.items():
             cls.NAME_2_ASPECT[ru_key] = getattr(ASPECT, name)
+        for ru_key, name in aliasCfg.ALIASES_GENDER.items():
+            val = getattr(GENDER, name)
+            cls.NAME_2_GENDER[ru_key] = val
+            cls.GENDER_2_NAME[val] = ru_key
+        for ru_key, name in aliasCfg.ALIASES_DOMAIN.items():
+            val = getattr(STIHIA, name)
+            cls.NAME_2_STIHIA[ru_key] = val
+            cls.STIHIA_2_NAME[val] = ru_key
 
     @classmethod
     def readAspectOrbises(cls, vronskyCfg):
@@ -90,6 +114,17 @@ class Config:
                 planet_znak_roles = cls.PLANET_ZNAK_ROLES.setdefault(planet_id, {})
                 planet_znak_roles[znak] = role
                 if verbose: print("set planet[%s] %d znak[%s] role = %s" % (planet_name, planet_id, znak, role))
+
+        for planet_name, attrs in vronskyCfg.PLANET_ATTRS.items():
+            if verbose: print("PLANET_ATTRS %s %s" % (planet_name, attrs))
+            planet_id = cls.NAME_2_PLANET[planet_name]
+            gender = cls.NAME_2_GENDER[attrs.get('пол', GENDER.NEUTRAL)]
+            stihia = cls.NAME_2_STIHIA[attrs.get('стихия', STIHIA.NONE)]
+            is_evil = bool(attrs.get('зловред'))
+            planet_attrs = PlanetAttrs(gender=gender, stihia=stihia, is_evil=is_evil)
+            cls.PLANET_ATTRS[planet_id] = planet_attrs
+
+        cls.BONUS_POINTS = vronskyCfg.BONUS_POINTS
 
     @classmethod
     def make_planet_args(self, planet_, znak_, gradus_):

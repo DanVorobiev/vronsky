@@ -98,3 +98,17 @@ ALIASES_ASPECT:
   опп: OPP
 
 
+ALIASES_GENDER:
+  м: MALE
+  ж: FEMALE
+  нет: NEUTRAL
+
+
+ALIASES_DOMAIN:
+  огонь: FIRE
+  земля: EARTH
+  воздух: AIR
+  вода: WATER
+  нет: NONE
+
+

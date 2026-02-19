@@ -6,7 +6,7 @@ from pprint import pprint as pretty
 from const import *
 import config
 from config import Config
-from planet import Planet
+from planet import Planet, BONUS
 
 
 class Horoscope:
@@ -120,22 +120,37 @@ class Horoscope:
             return
         if verbose: print("PREV:", prev)
         p = self.planets.get(prev.planet)
+
+        # скорость за день (сравниваем со средней угловой скоростью, табличной)
+        pnr = p.get_non_retro()
         p.day_speed = abs(p.abs_gradus - prev.abs_gradus)
-        avg_spd = Config.AVG_SPD.get(p.get_non_retro())
+        avg_spd = Config.AVG_SPD.get(pnr)
         speedStr = '-'
         if avg_spd is not None:
             if p.day_speed < avg_spd:
-                p.speed = speedStr = 'SLOW'
-                p.speedBonus = -2
+                p.set_bonus(BONUS.SPEED, Config.BONUS_POINTS['SLOW_SPEED'])
             else:
-                p.speed = speedStr = 'FAST'
-                p.speedBonus = 2
-        znak_type = getZnakType(p.znak)
+                p.set_bonus(BONUS.SPEED, Config.BONUS_POINTS['FAST_SPEED'])
+
+        # в каком типе знака (кардинальный, фиксированный, мутабельный) - там свои бонусы по отдельным дугам
+        znak_bonus_type = Planet.get_znak_bonus_type(p.znak)
         if p.has_znak_bonus():
-            p.znakBonus = znakBonusStr = znak_type+':+4'
-        else:
-            znakBonusStr = znak_type+':-'
-            p.znakBonus = ''
+            p.set_bonus(znak_bonus_type, Config.BONUS_POINTS['CARD_ZNAK_BONUS'])
+        znakBonusStr = p.get_bonus_str(())
+
+        planet_attrs = Config.PLANET_ATTRS.get(pnr)
+        if planet_attrs:
+            if (planet_attrs.stihia >= 0) and (planet_attrs.stihia == ZNAK._stihia(p.znak)):
+                # в знаке своей стихии (огонь, вода и т.п.)
+                p.set_bonus(BONUS.STIHIA, Config.BONUS_POINTS['OWN_STIHIA'])
+
+            if (planet_attrs.gender >= 0):
+                if (planet_attrs.gender == ZNAK._gender(p.znak)):
+                    # в знаке своего пола
+                    p.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['OWN_GENDER'])
+                else:
+                    # в знаке противоположногно пола
+                    p.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['WRONG_GENDER'])
 
         print("day SPEED: %s (%s) avg:%s %s %s [%s]" % (formatOrb(p.day_speed), speedStr,
                                                         formatOrb(avg_spd or 0), p, prev, znakBonusStr))
@@ -156,17 +171,36 @@ class Horoscope:
                 start_orb = orb(planet.abs_gradus, house.abs_gradus)
                 end_orb = orb(planet.abs_gradus, next.abs_gradus)
                 if start_orb < size and end_orb < size:
-                    planet.house = house_id
+                    # номер дома
+                    planet.house = house_id - PLANET._HOUSE_BASE  # 1..12
+
+                    # в какой трети дома
                     if start_orb < size/3:
                         planet.third = 1  # ближе к началу дома
                     elif end_orb < size/3:
                         planet.third = 3  # ближе к концу дома
                     else:
                         planet.third = 2  # посерединке
+
+                    # в "своем" поле/доме (например, Марс в I доме, а считая от равноденствия I дом = Овен, "свой" дом)
+                    house_znak = planet.house - 1
+                    role = Config.ZNAK_ROLES[house_znak].get(planet.planet, -1)
+                    if role == ROLE.DOMICILE:
+                        planet.set_bonus(BONUS.OWN_HOUSE, Config.BONUS_POINTS['OWN_HOUSE'])
+
+                    roleStr = ''
                     role = Config.ZNAK_ROLES[planet.znak].get(planet.planet)
-                    roleStr = "{%s}" % ROLE_NAMES[role] if role is not None else ''
+                    if role is not None:
+                        role_key = ROLE_KEYS[role]  # 'DOMICILE'
+                        bonus_points = Config.BONUS_POINTS.get(role_key)
+                        if bonus_points:
+                            bonus_type = getattr(BONUS, role_key)
+                            planet.set_bonus(bonus_type, bonus_points)
+                            roleStr = "{%s}" % planet.get_bonus_str(BONUS._HOUSE_ROLES)[:-1]
+
                     print("THIRD: %s %d/3 size=%0.2f/3=%0.2f orb=%0.2f %s %s" % (
                         planet, planet.third, size, size/3, start_orb, house, roleStr))
+
                     planets.remove(planet)  # ок, посчитали => удаляем из непосчитанных
                     if verbose: print('planets left:', [str(planet) for planet in planets])
 
@@ -202,16 +236,22 @@ class Horoscope:
         "Уран; Рыбы 4*39';	II;	3/3; FAST; 2"
         print("--- PLANETS: ---")
         for pid, p in self.planets.items():
-            role = Config.ZNAK_ROLES[p.znak].get(pid)
-            roleStr = "{%s}" % ROLE_NAMES[role] if role is not None else ''
+            roleStr = "{%s}" % p.get_bonus_str(BONUS._HOUSE_ROLES)[:-1]
 
             znak = Config.ZNAK_2_NAME[p.znak]
             znakStr = "%s %s %s" % (znak, formatOrb(p.gradus), roleStr)
 
-            houseStr = toRoman(p.house - PLANET._HOUSE_BASE) if p.house else ''
+            houseStr = toRoman(p.house) if p.house else ''
 
-            print("%s; %s; %s; %s; %s; %d; %s" % (
-                p.name(), znakStr, houseStr, p.third, p.speed, p.speedBonus, p.znakBonus))
+            speedBonus = p.get_bonus(BONUS.SPEED) or 0
+            speedStr = "-" if not speedBonus else "FAST" if speedBonus > 0 else "SLOW"
+
+            allBonuses = p.get_bonus_str()
+            bonusSum = p.sum_bonuses()
+            bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
+
+            print("%-10s; %-28s; %4s; %-4s; %4s; %3d;      %50s;      %4s" % (
+                p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses, bonusSumStr))
 
 
 if __name__ == '__main__':
@@ -224,6 +264,7 @@ if __name__ == '__main__':
         print(f"NAME_2_ZNAK: '{Config.NAME_2_ZNAK}'")
         print(f"NAME_2_ASPECT: '{Config.NAME_2_ASPECT}'")
         print('NATAL_TAGS:', NATAL_TAGS)
+        pretty(Config.PLANET_ATTRS)
 
     cfg.readAspectOrbises(config.VRONSKY_CFG)
     #print("MAJOR ORBISES:")
@@ -237,7 +278,7 @@ if __name__ == '__main__':
     hor = Horoscope()
 
     #with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-    with open("data/M.txt", "rt", encoding='utf8') as horoscope_file:
+    with open("data/D.txt", "rt", encoding='utf8') as horoscope_file:
         for line in horoscope_file:
             hor.parseLine(line)
 
