@@ -17,6 +17,7 @@ class Horoscope:
         self.natTime = None
         self.natHour = None
         self.isDayBirth = False
+        self.closestToMC = (0, FULL_ARC)  # орбис для ближайшей к MC планеты (только в пределах X/IX домов)
 
     def parseLine(self, line):
         if line.startswith("//") or line.startswith("#"):
@@ -37,9 +38,11 @@ class Horoscope:
             if token.find('.') > 0:
                 # parse date: "01.01.2000"
                 day, month, year = map(int, token.split('.'))
+                print("DMY", day, month, year)
             elif token.find(':') > 0:
                 # parse time: "12:20"
                 hours, minutes = map(int, token.split(':')[:2])
+                print("HM", hours, minutes)
             elif token in NATAL_TAGS:
                 natal_tag = NATAL_TAGS[token]
                 if verbose: print('natal_tag:', natal_tag)
@@ -180,6 +183,8 @@ class Horoscope:
 
     def calcHouses(self):
         newline()
+        mc = self.planets.get(PLANET.MC)
+        self.closestToMC = (PLANET._NONE, FULL_ARC)
         planets = [planet for pid, planet in self.planets.items() if pid not in PLANET._KUSPIDS]
         if verbose: print('planets at start:', [str(planet) for planet in planets])
         for house_id in PLANET._KUSPIDS:
@@ -205,11 +210,29 @@ class Horoscope:
                     else:
                         planet.third = 2  # посерединке
 
+                    planet_house3_points = Config.HOUSE_THIRD_POINTS.get(planet.planet)
+                    if planet_house3_points is not None:
+                        points = planet_house3_points[planet.house][planet.third-1]
+                        planet.set_bonus(BONUS.HOUSE_THIRD, points)
+
+                    pnr = planet.get_non_retro()
+                    planet_termy_points = Config.BONUS_TERMY.get(pnr)
+                    if planet_termy_points is not None:
+                        gradus1, gradus2, bonus_points = planet_termy_points[planet.znak]
+                        if gradus1 <= planet.abs_gradus < gradus2:
+                            planet.set_bonus(BONUS.TERMY, bonus_points)
+
                     # в "своем" поле/доме (например, Марс в I доме, а считая от равноденствия I дом = Овен, "свой" дом)
                     house_znak = planet.house - 1
                     role = Config.ZNAK_ROLES[house_znak].get(planet.planet, -1)
                     if role == ROLE.DOMICILE:
                         planet.set_bonus(BONUS.OWN_HOUSE, Config.BONUS_POINTS['OWN_HOUSE'])
+
+                    # ищем ближайшую планету к MC
+                    if mc and (planet.house in (9,10)) and (pnr in PLANET._REAL_PLANETS):
+                        range = orb(planet.abs_gradus, mc.abs_gradus)
+                        if range < self.closestToMC[1]:
+                            self.closestToMC = (planet.planet, range)
 
                     # в ретрограде
                     if planet.planet & PLANET._RETRO:
@@ -226,7 +249,6 @@ class Horoscope:
                             bonus_type = getattr(BONUS, bonus_key)
                             planet.set_bonus(bonus_type, Config.BONUS_POINTS[bonus_key])
 
-                    pnr = planet.get_non_retro()
                     planet_attrs = Config.PLANET_ATTRS.get(pnr)
                     if planet_attrs:
                         if (planet_attrs.stihia >= 0) and (planet_attrs.stihia == ZNAK._stihia(planet.znak)):
@@ -238,9 +260,16 @@ class Horoscope:
                                 # в знаке своего пола
                                 planet.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['OWN_GENDER'])
                             else:
-                                # в знаке противоположногно пола
+                                # в знаке противоположного пола
                                 planet.set_bonus(BONUS.GENDER, Config.BONUS_POINTS['WRONG_GENDER'])
 
+                        # в своем градусе экзальтации ("королевском градусе")
+                        if planet_attrs.exalt_gradus != BAD_GRADUS:
+                            eg = planet_attrs.exalt_gradus
+                            if eg <= planet.abs_gradus < eg+1:
+                                planet.set_bonus(BONUS.EXALT_GRADUS, Config.BONUS_POINTS['EXALT_GRADUS'])
+
+                    # в своем домициле/экзальте/эксиле/фалле
                     roleStr = ''
                     role = Config.ZNAK_ROLES[planet.znak].get(planet.planet)
                     if role is not None:
@@ -256,6 +285,13 @@ class Horoscope:
 
                     planets.remove(planet)  # ок, посчитали => удаляем из непосчитанных
                     if verbose: print('planets left:', [str(planet) for planet in planets])
+
+        # есть ли у нас победитель в конкурсе "кто ближе всех к MC"?
+        winner, actual_orbis = self.closestToMC
+        if winner != PLANET._NONE:
+            winner_planet = self.planets.get(winner)
+            self.checkAspectBonus(winner_planet, mc, ASPECT._CLOSEST_MC, actual_orbis)
+
 
     def findAspects(self):
         self.aspects = []
@@ -292,7 +328,8 @@ class Horoscope:
         for bonus in Config.BONUS_ASPECTS:
             if ((aspect == bonus.aspect) and (p2.planet in bonus.to_planets) and (p1.planet in bonus.planet_mask)):
                 if ((bonus.from_orbis < 0) or (bonus.from_orbis <= actual_orbis <= bonus.to_orbis)):
-                    print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2)
+                    print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2,
+                          bonus.from_orbis, actual_orbis, bonus.to_orbis)
                     p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
 
     def printoutPlanets(self):
@@ -313,7 +350,7 @@ class Horoscope:
             bonusSum = p.sum_bonuses()
             bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
 
-            print("%-10s; %-30s; %4s; %-4s; %4s; %3d;      %80s;      %4s" % (
+            print("%-10s; %-30s; %4s; %-2s; %4s; %2d; %100s;  %3s" % (
                 p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses, bonusSumStr))
 
 
@@ -340,8 +377,8 @@ if __name__ == '__main__':
 
     hor = Horoscope()
 
-    with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-    # with open("data/M.txt", "rt", encoding='utf8') as horoscope_file:
+    #with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
+    with open("data/SV.txt", "rt", encoding='utf8') as horoscope_file:
         for line in horoscope_file:
             hor.parseLine(line)
 

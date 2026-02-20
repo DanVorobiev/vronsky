@@ -21,7 +21,6 @@ class VronskyTableConfig:
     AVG_PLANET_SPD: dict
     CARDINAL_FIXED_MUTABLE_BONUS_RANGE: list
     ZNAK_DOMINANTS: dict
-    EXALTATION_GRADUS: dict
     PLANET_ATTRS: dict
     BONUS_POINTS: dict
     WEEKDAY_DOMINANTS: dict
@@ -29,12 +28,15 @@ class VronskyTableConfig:
     BONUS_GRADUS: dict
     PLANET_MASKS: dict
     BONUS_ASPECTS: list
+    HOUSE_THIRD_POINTS: dict
+    BONUS_TERMY: dict
 
 @dataclass
 class PlanetAttrs:
     gender: int
     stihia: int
     is_evil: bool
+    exalt_gradus: float  # OVEN:20*
 
 @dataclass
 class BonusAspect:
@@ -69,6 +71,8 @@ class Config:
     BONUS_GRADUS = {}
     NAME_2_PLANET_MASK = {}
     BONUS_ASPECTS = []
+    HOUSE_THIRD_POINTS = {}
+    BONUS_TERMY = {}
 
     def __init__(self):
         pass
@@ -142,7 +146,9 @@ class Config:
             gender = cls.NAME_2_GENDER[attrs.get('пол', GENDER.NEUTRAL)]
             stihia = cls.NAME_2_STIHIA[attrs.get('стихия', STIHIA.NONE)]
             is_evil = bool(attrs.get('зловред'))
-            planet_attrs = PlanetAttrs(gender=gender, stihia=stihia, is_evil=is_evil)
+            znak_, gradus = attrs.get('exalt_gradus', (None, BAD_GRADUS))
+            exalt_gradus = absGradus(cls.NAME_2_ZNAK[znak_], gradus) if znak_ is not None else BAD_GRADUS
+            planet_attrs = PlanetAttrs(gender=gender, stihia=stihia, is_evil=is_evil, exalt_gradus=exalt_gradus)
             cls.PLANET_ATTRS[planet_id] = planet_attrs
 
         cls.BONUS_POINTS = vronskyCfg.BONUS_POINTS
@@ -189,6 +195,18 @@ class Config:
             ))
         if verbose: pretty(['cfg.BONUS_ASPECTS', vronskyCfg.BONUS_ASPECTS])
         if verbose: pretty(['BONUS_ASPECTS', cls.BONUS_ASPECTS])
+
+        for planet_, house_points in vronskyCfg.HOUSE_THIRD_POINTS.items():
+            pid = cls.NAME_2_PLANET.get(planet_)
+            cls.HOUSE_THIRD_POINTS[pid] = house_points
+
+        for planet_, termy_ in vronskyCfg.BONUS_TERMY.items():
+            pid = cls.NAME_2_PLANET.get(planet_)
+            planet_termy = cls.BONUS_TERMY.setdefault(pid, {})
+            for znak_, (gradus1, gradus2, bonus_points) in termy_.items():
+                znak = cls.NAME_2_ZNAK.get(znak_)
+                planet_termy[znak] = (absGradus(znak, gradus1), absGradus(znak, gradus2), bonus_points)
+        pretty(['BONUS_TERMY', cls.BONUS_TERMY])
 
 
     @classmethod

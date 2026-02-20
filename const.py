@@ -6,6 +6,7 @@ verbose = False
 
 PREV_TAG = "PREV"
 
+BAD_GRADUS = -1
 
 class GENDER:
     NEUTRAL = -1
@@ -66,14 +67,17 @@ class PLANET:
     PLUTON = 10
 
     HIRON = 11
-    SELENA = 12
-    LILIT = 13
+    PROZERPINA = 12
+
+    _REAL_PLANETS = {SOL, LUNA, MERCURY, VENERA, MARS, JUPITER, SATURN, URAN, NEPTUN, PLUTON, HIRON, PROZERPINA}
+
+    SELENA = 13
+    LILIT = 14
 
     # Лунные узлы (восходящий/нисходящий)
-    KARM_NISHOD = 14
-    KARM_VOSHOD = 15
+    KARM_NISHOD = 15
+    KARM_VOSHOD = 16
 
-    PROZERPINA = 16
     VERTEX = 17
     PARS_FORTUNY = 18
 
@@ -126,6 +130,9 @@ class PLANET:
 
 PLANET_ALL = [k for k in PLANET.__dict__.keys() if not k.startswith('_')]
 
+_REAL_PLANETS_RETRO = set([(p + PLANET._RETRO) for p in PLANET._REAL_PLANETS])
+_REAL_PLANETS_WITH_RETRO = PLANET._REAL_PLANETS | _REAL_PLANETS_RETRO
+
 
 class PLANET_MASK:
     MERCURIES = PLANET._MERCURIES
@@ -146,6 +153,8 @@ class ASPECT:
 
     _OCTIL = 45
     _SESQUIQ = 135
+
+    _CLOSEST_MC = 29  # спец.значение орбиса для ближайших к MC планет (орбис там не может быть >= 30 градусов)
 
     _MINORS = [POLU_SEXT, KVINK, _OCTIL, _SESQUIQ]
 
@@ -239,6 +248,9 @@ class BONUS:
     VESY_GRADUS = '18*25*Весы'
     TELEC_GRADUS = '22*26*Тел'
     KOMBUSTA = 'комбуста'
+    EXALT_GRADUS = 'кор.град'
+    HOUSE_THIRD = 'треть'
+    TERMY = 'термы'
 
     _ZNAK_BONUS_TYPES = (CARDINAL_ZNAK, MUTABLE_ZNAK, FIXED_ZNAK)
     _HOUSE_ROLES = (DOMICILE, EXALTATION, EXILE, FALL)
