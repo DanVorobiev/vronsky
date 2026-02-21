@@ -70,6 +70,10 @@ class Horoscope:
         hours, minutes = self.natZakat
         minsZakat = hours*60 + minutes
 
+        import datetime
+        day, month, year = self.natDate
+        weekday = datetime.date(year=year, month=month, day=day).weekday()
+
         if minsNat < minsVoshod or minsNat >= minsZakat:
             # ночное рождение
             self.isDayBirth = False
@@ -82,6 +86,7 @@ class Horoscope:
             fHour = float(minsNat) / minsTotal * 12
             self.natHour = int(fHour) + 1
             print("NIGHT BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour, fHour, minsNat, minsTotal))
+            birthHourOwnerID = Config.NIGHT_HOUR_OWNER[weekday][self.natHour - 1]
         else:
             # дневное рождение
             self.isDayBirth = True
@@ -89,16 +94,17 @@ class Horoscope:
             fHour = float(minsNat - minsVoshod) / (minsZakat - minsVoshod) * 12
             self.natHour = int(fHour) + 1
             print("DAY BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour, fHour, minsNat - minsVoshod, minsTotal))
+            birthHourOwnerID = Config.DAY_HOUR_OWNER[weekday][self.natHour - 1]
+
+        planet = self.planets.get(birthHourOwnerID) or self.planets.get(birthHourOwnerID + PLANET._RETRO)
+        planet.set_bonus(BONUS.HOUR_DOMINANT, Config.BONUS_POINTS['HOUR_DOMINANT'])
 
         # доминант года рождения
-        day, month, year = self.natDate
         planet_id = Config.get_year_dominant(year)
         planet = self.planets.get(planet_id) or self.planets.get(planet_id + PLANET._RETRO)
         planet.set_bonus(BONUS.YEAR_DOMINANT, Config.BONUS_POINTS['YEAR_DOMINANT'])
 
         # доминант дня рождения (этого дня недели)
-        import datetime
-        weekday = datetime.date(year=year, month=month, day=day).weekday()
         planet_id = Config.get_weekday_dominant(weekday)
         planet = self.planets.get(planet_id) or self.planets.get(planet_id + PLANET._RETRO)
         planet.set_bonus(BONUS.WEEKDAY_DOMINANT, Config.BONUS_POINTS['WEEKDAY_DOMINANT'])
@@ -210,11 +216,19 @@ class Horoscope:
                     else:
                         planet.third = 2  # посерединке
 
+                    # баллы за дом/треть
                     planet_house3_points = Config.HOUSE_THIRD_POINTS.get(planet.planet)
                     if planet_house3_points is not None:
                         points = planet_house3_points[planet.house][planet.third-1]
                         planet.set_bonus(BONUS.HOUSE_THIRD, points)
 
+                    # баллы за знак/градус
+                    planet_gradus_points = Config.PLANET_GRADUS_BONUSES.get(planet.planet, {}).get(planet.znak)
+                    if planet_gradus_points is not None:
+                        points = planet_gradus_points[int(planet.gradus)]
+                        planet.set_bonus(BONUS.PLANET_GRADUS, points)
+
+                    # доп.баллы за термы
                     pnr = planet.get_non_retro()
                     planet_termy_points = Config.BONUS_TERMY.get(pnr)
                     if planet_termy_points is not None:
@@ -227,6 +241,10 @@ class Horoscope:
                     role = Config.ZNAK_ROLES[house_znak].get(planet.planet, -1)
                     if role == ROLE.DOMICILE:
                         planet.set_bonus(BONUS.OWN_HOUSE, Config.BONUS_POINTS['OWN_HOUSE'])
+
+                    # в своем градусе (из таблицы управителей градусов по Вронскому)
+                    if planet.is_own_gradus_dominant():
+                        planet.set_bonus(BONUS.OWN_GRADUS, Config.BONUS_POINTS['OWN_GRADUS'])
 
                     # ищем ближайшую планету к MC
                     if mc and (planet.house in (9,10)) and (pnr in PLANET._REAL_PLANETS):
@@ -292,7 +310,6 @@ class Horoscope:
             winner_planet = self.planets.get(winner)
             self.checkAspectBonus(winner_planet, mc, ASPECT._CLOSEST_MC, actual_orbis)
 
-
     def findAspects(self):
         self.aspects = []
         planets = self.planets.values()
@@ -328,20 +345,21 @@ class Horoscope:
         for bonus in Config.BONUS_ASPECTS:
             if ((aspect == bonus.aspect) and (p2.planet in bonus.to_planets) and (p1.planet in bonus.planet_mask)):
                 if ((bonus.from_orbis < 0) or (bonus.from_orbis <= actual_orbis <= bonus.to_orbis)):
-                    print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2,
-                          bonus.from_orbis, actual_orbis, bonus.to_orbis)
+                    if verbose:print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2,
+                                     bonus.from_orbis, actual_orbis, bonus.to_orbis)
                     p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
 
-    def printoutPlanets(self):
+    def printoutPlanets(self, include_bonuses=True):
         "Уран; Рыбы 4*39';	II;	3/3; FAST; 2"
         print("--- PLANETS: ---")
         for pid, p in self.planets.items():
-            roleStr = "{%s}" % p.get_bonus_str(BONUS._HOUSE_ROLES)[:-1]
+            roleBonus = p.get_bonus_str(BONUS._HOUSE_ROLES)
+            roleStr = "{%s}" % roleBonus[:-1] if roleBonus else ''
 
             znak = Config.ZNAK_2_NAME[p.znak]
             znakStr = "%s %s %s" % (znak, formatOrb(p.gradus), roleStr)
 
-            houseStr = toRoman(p.house) if p.house else ''
+            houseStr = toRoman(p.house) if p.house else '-'
 
             speedBonus = p.get_bonus(BONUS.SPEED) or 0
             speedStr = "-" if not speedBonus else "FAST" if speedBonus > 0 else "SLOW"
@@ -350,8 +368,12 @@ class Horoscope:
             bonusSum = p.sum_bonuses()
             bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
 
-            print("%-10s; %-30s; %4s; %-2s; %4s; %2d; %100s;  %3s" % (
-                p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses, bonusSumStr))
+            outputStr = "%3s %-10s %-30s %4s/%s" % (bonusSumStr, p.name(), znakStr, houseStr, p.third or '-')
+            if include_bonuses: outputStr += '   # %s' % allBonuses
+            print(outputStr)
+
+            #print("%3s %-10s %-30s; %4s; %-2s; %4s; %2d; %90s;" % (
+            #    bonusSumStr, p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses))
 
 
 if __name__ == '__main__':
@@ -377,8 +399,9 @@ if __name__ == '__main__':
 
     hor = Horoscope()
 
-    #with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-    with open("data/SV.txt", "rt", encoding='utf8') as horoscope_file:
+    with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
+    #with open("data/NT-0630.txt", "rt", encoding='utf8') as horoscope_file:
+    #with open("data/SB-0640.txt", "rt", encoding='utf8') as horoscope_file:
         for line in horoscope_file:
             hor.parseLine(line)
 
@@ -386,4 +409,5 @@ if __name__ == '__main__':
     hor.findAspects()
     hor.calcNatals()
 
-    hor.printoutPlanets()
+    INCLUDE_BONUSES = True
+    hor.printoutPlanets(INCLUDE_BONUSES)

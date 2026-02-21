@@ -84,6 +84,12 @@ class Planet(object):
     def has_znak_bonus(self):
         bonus_ranges = Config.ZNAK_BONUS_RANGES.get(self.znak)
         for (start, end) in bonus_ranges:
+            if verbose: print("ZNAK BONUS:", str(self), start, self.abs_gradus, end)
             if start <= self.abs_gradus <= end:
                 return True
         return False
+
+    def is_own_gradus_dominant(self):
+        gradus7 = int(self.gradus) % 7
+        return self.planet in Config.OWN_GRADUS.get(self.znak).get(gradus7)
+

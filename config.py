@@ -30,6 +30,10 @@ class VronskyTableConfig:
     BONUS_ASPECTS: list
     HOUSE_THIRD_POINTS: dict
     BONUS_TERMY: dict
+    OWN_GRADUS: dict
+    DAY_HOUR_OWNER: dict
+    NIGHT_HOUR_OWNER: dict
+    PLANET_GRADUS_BONUSES: dict
 
 @dataclass
 class PlanetAttrs:
@@ -73,6 +77,10 @@ class Config:
     BONUS_ASPECTS = []
     HOUSE_THIRD_POINTS = {}
     BONUS_TERMY = {}
+    OWN_GRADUS = {}
+    DAY_HOUR_OWNER = {}
+    NIGHT_HOUR_OWNER = {}
+    PLANET_GRADUS_BONUSES = {}
 
     def __init__(self):
         pass
@@ -126,6 +134,7 @@ class Config:
                 abs_end = absGradus(znak, end_orb)
                 range_list = cls.ZNAK_BONUS_RANGES.setdefault(znak, [])
                 range_list.append((abs_start, abs_end))
+                if verbose: print(znak_type_, cls.ZNAK_2_NAME[znak], cls.ZNAK_BONUS_RANGES[znak])
 
         # ZNAK_DOMINANTS
         for (znak_name, planet_2_role) in vronskyCfg.ZNAK_DOMINANTS.items():
@@ -188,7 +197,7 @@ class Config:
             pid = cls.NAME_2_PLANET.get(planet_)
             from_orbis = -1 if (from_ == '-') else cls.parse_gradus(from_)
             to_orbis = -1 if (from_ == '-') else cls.parse_gradus(to_)
-            bonus_type = "%s(%s)" % (aspect_, planet_[:1])
+            bonus_type = "%s(%s)" % (aspect_, planet_[:3])
             cls.BONUS_ASPECTS.append(BonusAspect(
                 planet_mask=mask, aspect=aspect, to_planets=[pid, pid ^ PLANET._RETRO],
                 from_orbis=from_orbis, to_orbis=to_orbis, bonus_type=bonus_type, bonus_points=bonus_points
@@ -206,8 +215,47 @@ class Config:
             for znak_, (gradus1, gradus2, bonus_points) in termy_.items():
                 znak = cls.NAME_2_ZNAK.get(znak_)
                 planet_termy[znak] = (absGradus(znak, gradus1), absGradus(znak, gradus2), bonus_points)
-        pretty(['BONUS_TERMY', cls.BONUS_TERMY])
+        if verbose: pretty(['BONUS_TERMY', cls.BONUS_TERMY])
 
+        for znak_, gradus_planets in vronskyCfg.OWN_GRADUS.items():
+            znak = cls.NAME_2_ZNAK.get(znak_)
+            cls.OWN_GRADUS[znak] = fill_dict = {}
+            for gradus, planets_ in gradus_planets.items():
+                fill_dict[gradus] = set([cls.NAME_2_PLANET[planet_] for planet_ in planets_])
+            # NB(!): только градусы 0-6 заполнены в табличке, см. is_own_gradus_dominant(), там берем % 7
+            if verbose: pretty(['OWN_GRADUS', cls.OWN_GRADUS])
+
+        for weekday, planets_ in vronskyCfg.DAY_HOUR_OWNER.items():
+            cls.DAY_HOUR_OWNER[weekday] = [cls.NAME_2_PLANET[p] for p in planets_]
+        for weekday, planets_ in vronskyCfg.NIGHT_HOUR_OWNER.items():
+            cls.NIGHT_HOUR_OWNER[weekday] = [cls.NAME_2_PLANET[p] for p in planets_]
+        if verbose: pretty(['DAY_HOUR_OWNER', cls.DAY_HOUR_OWNER])
+        if verbose: pretty(['NIGHT_HOUR_OWNER', cls.NIGHT_HOUR_OWNER])
+
+        for planet_, planet_graduses_ in vronskyCfg.PLANET_GRADUS_BONUSES.items():
+            pid = cls.NAME_2_PLANET.get(planet_)
+            planet_graduses = cls.PLANET_GRADUS_BONUSES.setdefault(pid, {})
+            for znak_, gradus_array in planet_graduses_.items():
+                znak = cls.NAME_2_ZNAK.get(znak_)
+                planet_graduses[znak] = gradus_array
+                assert(len(gradus_array) == 30)
+            assert (len(planet_graduses) == 12)
+        # нужно продублировать таблицы градусов по списку:
+        DUPLICATE_TABLES = [
+            (PLANET.MERCURY, PLANET.MERCURY_RETRO),  # для Меркурия одна таблица (вне зависимости от ретроградности)
+            (PLANET.VENERA, PLANET.VENERA_RETRO),  # для Венеры одна таблица (вне зависимости от ретроградности)
+            (PLANET.MARS, PLANET.MARS_RETRO),   # для Марса одна таблица (вне зависимости от ретроградности)
+            (PLANET.MARS, PLANET.PLUTON_RETRO),  # Марс + Плутон-R
+            (PLANET.MARS, PLANET.PLUTON),  # для обычного Плутона нет таблицы, видимо та же что для Плутона-R?
+            (PLANET.JUPITER, PLANET.NEPTUN_RETRO),  # Юпитер + Нептун-R
+            (PLANET.SATURN, PLANET.URAN_RETRO),  # Сатурн + Уран-R
+            (PLANET.NEPTUN, PLANET.JUPITER_RETRO),  # Нептун + Юпитер-R
+            (PLANET.URAN, PLANET.SATURN_RETRO),  # Уран + Сатурн-R
+        ]
+        for tbl_from, tbl_to in DUPLICATE_TABLES:
+            cls.PLANET_GRADUS_BONUSES[tbl_to] = cls.PLANET_GRADUS_BONUSES[tbl_from]
+        #if verbose:
+        pretty(['PLANET_GRADUS_BONUSES keys:', cls.PLANET_GRADUS_BONUSES.keys()])
 
     @classmethod
     def get_year_dominant(self, year):

@@ -229,28 +229,31 @@ def hasGradus(token):
 
 class BONUS:
     SPEED = 'spd'
-    CARDINAL_ZNAK = 'кард'
-    FIXED_ZNAK = 'фикс'
-    MUTABLE_ZNAK = 'мутаб'
+    CARDINAL_ZNAK = 'крит°(к)'
+    FIXED_ZNAK = 'крит°(ф)'
+    MUTABLE_ZNAK = 'крит°(м))'
     GENDER = 'пол'
     STIHIA = 'стихия'  # в знаке своего стихийного тригона (напр. огонь для Солнца/Марса/Юпитера)
-    OWN_HOUSE = 'свой.дом'  # в своём поле (default доме, считая от равноденствия - напр. Марс в I доме = Овен (управ.Марс)
+    OWN_HOUSE = 'свой/дом'  # в своём поле (default доме, считая от равноденствия - напр. Марс в I доме = Овен (управ.Марс)
     DOMICILE = 'домицил'
     EXALTATION = 'экзальт'
     EXILE = 'эксиль'
     FALL = 'фалл'
-    YEAR_DOMINANT = 'дом.года'
-    WEEKDAY_DOMINANT = 'дом.дня'
-    ASC_DOMINANT = 'дом.ASC'
-    MC_DOMINANT = 'дом.MC'
+    YEAR_DOMINANT = 'дом/года'
+    WEEKDAY_DOMINANT = 'дом/дня'
+    ASC_DOMINANT = 'дом/ASC'
+    MC_DOMINANT = 'дом/MC'
     RETRO = 'ретро'
-    LEV_GRADUS = '25*30*Лев'
-    VESY_GRADUS = '18*25*Весы'
-    TELEC_GRADUS = '22*26*Тел'
+    LEV_GRADUS = '25°30°Лев'
+    VESY_GRADUS = '18°25°Весы'
+    TELEC_GRADUS = '22°26°Тел'
     KOMBUSTA = 'комбуста'
-    EXALT_GRADUS = 'кор.град'
+    EXALT_GRADUS = 'экз°'
     HOUSE_THIRD = 'треть'
     TERMY = 'термы'
+    OWN_GRADUS = 'свой°'
+    HOUR_DOMINANT = 'дом/часа'
+    PLANET_GRADUS = '(°)'
 
     _ZNAK_BONUS_TYPES = (CARDINAL_ZNAK, MUTABLE_ZNAK, FIXED_ZNAK)
     _HOUSE_ROLES = (DOMICILE, EXALTATION, EXILE, FALL)
