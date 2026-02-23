@@ -15,14 +15,12 @@ class GENDER:
     MALE = 0
     FEMALE = 1
 
-
 class STIHIA:
     NONE = -1
     FIRE = 0
     EARTH = 1
     AIR = 2
     WATER = 3
-
 
 class ZNAK:
     _NONE = -1
@@ -230,10 +228,17 @@ def hasGradus(token):
     return token.find('*') > 0 or token.find('°') > 0
 
 
+def signed(num):
+    if num is None: return 0
+    sign = "+" if num > 0 else ''
+    return sign + str(num)
+
+
 class INCLUDE_BONUSES:
     NONE = 0
     ALL = 1
     ASC_INDEPENDENT_ONLY = -1
+
 
 class BONUS:
     SPEED = 'spd'
@@ -281,4 +286,3 @@ class BONUS:
     _ASC_DEPENDENT = {HOUSE_THIRD, OWN_HOUSE, ASC_DOMINANT, MC_DOMINANT, HOUR_DOMINANT,
                       BLIZH_MC, UGOL_ASC, UGOL_DSC, UGOL_MC, UGOL_IC}
 
-4

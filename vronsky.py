@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from pprint import pprint as pretty
 #from itertools import combinations
+import math
 
 from const import *
 import config
@@ -248,11 +249,11 @@ class Horoscope:
         if prev is None:
             return
         if verbose: print("PREV:", prev)
-        p = self.planets.get(prev.planet) or self.planets.get(prev.planet + PLANET._RETRO)
+        p = self.planets.get(prev.planet) or self.planets.get(prev.planet ^ PLANET._RETRO)
 
         # скорость за день (сравниваем со средней угловой скоростью, табличной)
         pnr = p.get_non_retro()
-        p.prev_gradus = prev.abs_gradus
+        p.prev_gradus = prev.gradus
         p.day_speed = abs(p.abs_gradus - prev.abs_gradus)
         avg_spd = Config.AVG_SPD.get(pnr)
         speedStr = '-'
@@ -413,7 +414,7 @@ class Horoscope:
                     orbis = table_orbis if aspect not in ASPECT._MINORS else min(table_orbis, MINOR_ASPECT_ORBIS)
                     actual_orbis = abs(arc - aspect)
                     if actual_orbis < orbis:
-                        self.aspects.append((p1, p2, aspect))
+                        self.aspects.append((p1, p2, aspect, arc, actual_orbis, orbis))
                         if p1 != last_planet: newline()
                         print("ASPECT: %s %s %s %d %0.3f %0.1f" % (p1.name(), aname, p2.name(), aspect, arc, orbis))
                         last_planet = p1
@@ -426,6 +427,38 @@ class Horoscope:
                     if verbose:print("ASPECT BONUS:", bonus.bonus_type, bonus.bonus_points, p1, p2,
                                      bonus.from_orbis, actual_orbis, bonus.to_orbis)
                     p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
+
+    def rateAspects(self):
+        self.aspectRating = []
+        self.maxAspectRating = 0.0
+        for p1, p2, aspect, arc, actual_orbis, max_orbis in self.aspects:
+            p1b = p1.sum_bonuses()
+            p2b = p2.sum_bonuses()
+            if (p2b > p1b) or (p1b == p2b and p1.planet > p2.planet):
+                continue  # все аспекты в списке по 2 раза, исключаем дубликаты; оставляем вариант сила1 >= сила2
+            w_aspect = Config.ASPECT_WEIGHT.get(aspect, 0)
+            p1w = Config.PLANET_WEIGHT.get(p1.get_non_retro())
+            p2w = Config.PLANET_WEIGHT.get(p2.get_non_retro())
+            AC = Config.ASPECT_COEFFS
+            p_add, ps_deg = AC.get('ADD_PLANET_BALL'), AC.get('PLANET_SUM_DEGREE')
+            mult = AC.get('ASPECT_EXACTNESS_EXP_DEGREE_MULT')
+            if not p1w or not p2w or not w_aspect:
+                continue
+            ps = pow((abs(p1b) + p_add) * (abs(p2b) + p_add), ps_deg)
+            r = actual_orbis / max_orbis
+            ow = math.exp(mult * r)
+            cw = math.sqrt(p1w * p2w)
+            rating = w_aspect * ps * ow * cw
+            self.maxAspectRating = max(self.maxAspectRating, rating)
+            self.aspectRating.append((rating, p1.name(), p2.name(), (p1b, p2b), cw, aspect, (actual_orbis, max_orbis)))
+
+        self.aspectRating = sorted(self.aspectRating, reverse=True)
+        print("-------------\nTOP-30 ASPECTS (max %0.3f):" % self.maxAspectRating)
+        for i, (rating, p1name, p2name, (p1b, p2b), cw, aspect, (orb, max_orb)) in enumerate(self.aspectRating[:30]):
+            print("[%0.1f] %s(%s) %s %s(%s) orb=%d°" % (
+                rating/self.maxAspectRating*10, p1name, signed(p1b), Config.ASPECT_2_NAME[aspect],
+                p2name, signed(p2b), round(orb)
+            ))
 
     def exportFile(self, output_file):
         output_file.write("%s\n" % self.natName or "???")
@@ -503,6 +536,8 @@ def runHoroscope(input_filename, incl_bonuses=0, import_raw=False):
     hor.calcHouses()
     hor.findAspects()
     hor.calcNatals()
+    hor.rateAspects()
+    hor.calcNatals()
 
     hor.printoutPlanets(incl_bonuses)
 
@@ -535,11 +570,12 @@ if __name__ == '__main__':
         pretty(Config.PLANET_ZNAK_ROLES)
     print("SOL to LUNA orbis:", cfg.MAJOR_ORBS[PLANET.SOL][PLANET.LUNA], cfg.MAJOR_ORBS[PLANET.LUNA][PLANET.SOL])
 
-    IMPORT_RAW = False  # True
+    #IMPORT_RAW = False
+    IMPORT_RAW = True
     INCL_BONUSES = INCLUDE_BONUSES.ALL  # NONE
     #INCL_BONUSES = INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY
     INPUT_FILENAME = "data/_example.txt"
-    #INPUT_FILENAME = "data/D.txt"
+    #INPUT_FILENAME = "data/D-1700.EXP.txt"
     #INPUT_FILENAME = data/NT-0630.txt"
     #INPUT_FILENAME = "data/SB-0550-raw.txt"
 

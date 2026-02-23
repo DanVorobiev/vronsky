@@ -34,6 +34,9 @@ class VronskyTableConfig:
     DAY_HOUR_OWNER: dict
     NIGHT_HOUR_OWNER: dict
     PLANET_GRADUS_BONUSES: dict
+    ASPECT_WEIGHT: dict
+    PLANET_WEIGHT: dict
+    ASPECT_COEFFS: dict
 
 @dataclass
 class PlanetAttrs:
@@ -81,6 +84,9 @@ class Config:
     DAY_HOUR_OWNER = {}
     NIGHT_HOUR_OWNER = {}
     PLANET_GRADUS_BONUSES = {}
+    ASPECT_WEIGHT = {}
+    PLANET_WEIGHT = {}
+    ASPECT_COEFFS = {}
 
     def __init__(self):
         pass
@@ -254,8 +260,21 @@ class Config:
         ]
         for tbl_from, tbl_to in DUPLICATE_TABLES:
             cls.PLANET_GRADUS_BONUSES[tbl_to] = cls.PLANET_GRADUS_BONUSES[tbl_from]
+        if verbose: pretty(['PLANET_GRADUS_BONUSES keys:', cls.PLANET_GRADUS_BONUSES.keys()])
+
+        for planet_, planet_weight in vronskyCfg.PLANET_WEIGHT.items():
+            pid = cls.NAME_2_PLANET.get(planet_)
+            cls.PLANET_WEIGHT[pid] = planet_weight
         #if verbose:
-        pretty(['PLANET_GRADUS_BONUSES keys:', cls.PLANET_GRADUS_BONUSES.keys()])
+        pretty(['PLANET_WEIGHT:', cls.PLANET_WEIGHT])
+
+        for aspect_, aspect_weight in vronskyCfg.ASPECT_WEIGHT.items():
+            aid = cls.NAME_2_ASPECT.get(aspect_)
+            cls.ASPECT_WEIGHT[aid] = aspect_weight
+        #if verbose:
+        pretty(['ASPECT_WEIGHT:', cls.PLANET_WEIGHT])
+
+        cls.ASPECT_COEFFS = vronskyCfg.ASPECT_COEFFS
 
     @classmethod
     def get_year_dominant(self, year):
