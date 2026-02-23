@@ -19,6 +19,7 @@ class Planet(object):
         self.third = None
 
         # can be calculated with prev.day gradus (use PREV tag in the beginning of the planet line)
+        self.prev_gradus = None
         self.day_speed = None
 
         self.bonuses = {}  # {BONUS.SPEED: +2}
@@ -42,6 +43,8 @@ class Planet(object):
         s = ''
         if bonus_types is None:
             bonus_types = self.bonuses.keys()
+        elif bonus_types is INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY:
+            bonus_types = set(self.bonuses.keys()) - BONUS._ASC_DEPENDENT
         for bonus in bonus_types:
             val = self.bonuses.get(bonus)
             if val:
@@ -53,8 +56,10 @@ class Planet(object):
         s = 0
         if bonus_types is None:
             bonus_types = self.bonuses.keys()
+        elif bonus_types is INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY:
+            bonus_types = set(self.bonuses.keys()) - BONUS._ASC_DEPENDENT
         for bonus in bonus_types:
-            s += self.bonuses.get(bonus)
+            s += self.bonuses.get(bonus) or 0
         return s
 
     def orb(self, planet2):

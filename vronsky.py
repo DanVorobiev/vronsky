@@ -29,6 +29,16 @@ class Horoscope:
         else:
             self.parseNatals(line)
 
+    def parseRaw(self, line):
+        if line.startswith("//") or line.startswith("#"):
+            return
+        elif line.startswith(PREV_TAG):
+            self.parsePlanetSpeedRaw(line)
+        elif hasGradus(line):
+            self.parsePlanetRaw(line)
+        else:
+            self.parseNatals(line)
+
     def parseNatals(self, line):
         tokens = line.split()
         if verbose: print('natal tokens:', tokens)
@@ -57,6 +67,8 @@ class Horoscope:
         elif natal_tag == 'ZAKAT':
             self.natZakat = (hours, minutes)
             print("NATAL ZAKAT:", self.natZakat)
+        elif natal_tag == 'NAME':
+            self.natName = line
 
     def calcNatals(self):
         if not (self.natHour and self.natVoshod and self.natZakat):
@@ -84,17 +96,17 @@ class Horoscope:
             else:
                 minsNat = minsNat - minsZakat
             fHour = float(minsNat) / minsTotal * 12
-            self.natHour = int(fHour) + 1
-            print("NIGHT BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour, fHour, minsNat, minsTotal))
-            birthHourOwnerID = Config.NIGHT_HOUR_OWNER[weekday][self.natHour - 1]
+            self.natHour12 = int(fHour) + 1
+            print("NIGHT BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour12, fHour, minsNat, minsTotal))
+            birthHourOwnerID = Config.NIGHT_HOUR_OWNER[weekday][self.natHour12 - 1]
         else:
             # дневное рождение
             self.isDayBirth = True
             minsTotal = minsZakat - minsVoshod
             fHour = float(minsNat - minsVoshod) / (minsZakat - minsVoshod) * 12
-            self.natHour = int(fHour) + 1
-            print("DAY BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour, fHour, minsNat - minsVoshod, minsTotal))
-            birthHourOwnerID = Config.DAY_HOUR_OWNER[weekday][self.natHour - 1]
+            self.natHour12 = int(fHour) + 1
+            print("DAY BIRTH: natal hour %d (%0.2f), %d/%d" % (self.natHour12, fHour, minsNat - minsVoshod, minsTotal))
+            birthHourOwnerID = Config.DAY_HOUR_OWNER[weekday][self.natHour12 - 1]
 
         planet = self.planets.get(birthHourOwnerID) or self.planets.get(birthHourOwnerID + PLANET._RETRO)
         planet.set_bonus(BONUS.HOUR_DOMINANT, Config.BONUS_POINTS['HOUR_DOMINANT'])
@@ -139,13 +151,7 @@ class Horoscope:
         if not self.hasMCDominant: print("NOTE: Нет доминанта MC (%s)" % str(
             [Config.PLANET_2_NAME[pid] for pid in list(mc_pids)]))
 
-    def _parsePlanet(self, line):
-        if not hasGradus(line):
-            return
-        elems = line.split()
-        if (not elems) or len(elems) < 3:
-            return
-        if verbose: print(elems)
+    def _parsePlanet(self, elems):
         planet_ = znak_ = gradus_ = None
         for token in elems:
             if (planet_ is None) and Config.NAME_2_PLANET.get(token) is not None: planet_ = token
@@ -159,15 +165,86 @@ class Horoscope:
         except:
             print(elems)
 
+    def parsePlanetRaw(self, line):
+        elems = line.split()
+        if (not elems) or len(elems) < 3:
+            return
+        if verbose2: print(elems)
+        self.parseRawChunks(elems, self._parsePlanet, self._addPlanet)
+
+    def parsePlanetSpeedRaw(self, line):
+        elems = line.split()
+        if (not elems) or len(elems) < 3:
+            return
+        if verbose2: print(elems)
+        self.parseRawChunks(elems, self._doParsePlanetSpeed, None)
+
+    def parseRawChunks(self, elems, parseChunksCallback, addPlanetCallback):
+        chunk = []
+        isPlanetChunk = False
+        PLANET_NAME_IDX = 0  # we always start chunk with a planet name
+        for i, token in enumerate(elems):
+            if Config.NAME_2_PLANET.get(token):
+                # нашли планету!
+                if isPlanetChunk:
+                    # в нашем чанке уже есть имя планеты (и мы нашли следующее) -> обрабатываем чанк
+                    if verbose2: print("parse complete chunk:", chunk)
+                    p = parseChunksCallback(chunk)
+                    if (p is not None) and addPlanetCallback is not None:
+                        addPlanetCallback(p)
+                    # reset chunk (to include just the current "planet-name" token)
+                    chunk = [token]
+                    isPlanetChunk = True
+                else:
+                    # начинаем накапливать чанки, начиная с планеты
+                    chunk.append(token)
+                    isPlanetChunk = True
+                    if verbose2: print("start new chunk:", token)
+            else:
+                if isPlanetChunk:
+                    # продолжаем накапливать чанки
+                    if verbose: print("add chunk", token)
+                    chunk.append(token)
+                    if token in ("R", "D"):
+                        # и кстати, если нашли признак директности или ретроградности - это относится к имени планеты
+                        if not chunk[PLANET_NAME_IDX].endswith(token):
+                            chunk[PLANET_NAME_IDX] += "-" + token
+                            if verbose2: print("add planet suffix:", chunk[PLANET_NAME_IDX])
+                else:
+                    # просто скипаем чанки, пока не найдем планету
+                    if verbose2: print("skip chunk", token)
+
+        if chunk and isPlanetChunk:
+            # дошли до конца, и в нашем чанке есть имя планеты -> обрабатываем чанк
+            if verbose2: print("parse final chunk:", chunk)
+            p = parseChunksCallback(chunk)
+            if (p is not None) and addPlanetCallback is not None:
+                addPlanetCallback(p)
+
+    def _addPlanet(self, p):
+        print("PARSED:", p)
+        self.planets[p.planet] = p
+
     def parsePlanet(self, line):
-        p = self._parsePlanet(line)
+        elems = line.split()
+        if (not elems) or len(elems) < 3:
+            return
+        if verbose: print(elems)
+        p = self._parsePlanet(elems)
         if p is None:
             return
         print("PARSED:", p)
         self.planets[p.planet] = p
 
     def parsePlanetSpeed(self, line):
-        prev = self._parsePlanet(line)
+        elems = line.split()
+        if (not elems) or len(elems) < 3:
+            return
+        if verbose: print(elems)
+        self._doParsePlanetSpeed(elems)
+
+    def _doParsePlanetSpeed(self, elems):
+        prev = self._parsePlanet(elems)
         if prev is None:
             return
         if verbose: print("PREV:", prev)
@@ -175,6 +252,7 @@ class Horoscope:
 
         # скорость за день (сравниваем со средней угловой скоростью, табличной)
         pnr = p.get_non_retro()
+        p.prev_gradus = prev.abs_gradus
         p.day_speed = abs(p.abs_gradus - prev.abs_gradus)
         avg_spd = Config.AVG_SPD.get(pnr)
         speedStr = '-'
@@ -349,7 +427,33 @@ class Horoscope:
                                      bonus.from_orbis, actual_orbis, bonus.to_orbis)
                     p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
 
-    def printoutPlanets(self, include_bonuses=True):
+    def exportFile(self, output_file):
+        output_file.write("%s\n" % self.natName or "???")
+        day, month, year = self.natDate
+        hours, minutes = self.natHour
+        output_file.write("%s %02d.%02d.%d %02d:%02d\n" % (NATAL.DATE_TIME, day, month, year, hours, minutes))
+        hours, minutes = self.natVoshod
+        output_file.write("%s %02d:%02d\n" % (NATAL.VOSHOD, hours, minutes))
+        hours, minutes = self.natZakat
+        output_file.write("%s %02d:%02d\n\n" % (NATAL.ZAKAT, hours, minutes))
+
+        # current positions (planets & houses)
+        for pid, p in self.planets.items():
+            znak = Config.ZNAK_2_NAME[p.znak]
+            outputStr = "%s  %s  %s\n" % (p.name(), znak, formatOrb(p.gradus))
+            if pid == PLANET.ASC: output_file.write("\n")
+            output_file.write(outputStr)
+        output_file.write("\n")
+
+        # PREV day positions (planets only)
+        for pid, p in self.planets.items():
+            if PLANET._HOUSE_FIRST <= pid <= PLANET._HOUSE_LAST:
+                continue
+            znak = Config.ZNAK_2_NAME[p.znak]
+            outputStr = "PREV  %s  %s  %s\n" % (p.name(), znak, formatOrb(p.prev_gradus))
+            output_file.write(outputStr)
+
+    def printoutPlanets(self, include_bonuses=INCLUDE_BONUSES.ALL):
         "Уран; Рыбы 4*39';	II;	3/3; FAST; 2"
         print("--- PLANETS: ---")
         for pid, p in self.planets.items():
@@ -359,21 +463,55 @@ class Horoscope:
             znak = Config.ZNAK_2_NAME[p.znak]
             znakStr = "%s %s %s" % (znak, formatOrb(p.gradus), roleStr)
 
-            houseStr = toRoman(p.house) if p.house else '-'
+            house = toRoman(p.house) if p.house else '-'
+            houseStr = "%3s/%s" % (house, p.third or '-')
 
             speedBonus = p.get_bonus(BONUS.SPEED) or 0
             speedStr = "-" if not speedBonus else "FAST" if speedBonus > 0 else "SLOW"
 
-            allBonuses = p.get_bonus_str()
-            bonusSum = p.sum_bonuses()
+            if include_bonuses == INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY:
+                bonus_types = INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY
+                houseStr = '-'
+            else:
+                bonus_types = None
+            allBonuses = p.get_bonus_str(bonus_types)
+            bonusSum = p.sum_bonuses(bonus_types)
             bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
 
-            outputStr = "%3s %-10s %-30s %4s/%s" % (bonusSumStr, p.name(), znakStr, houseStr, p.third or '-')
-            if include_bonuses: outputStr += '   # %s' % allBonuses
+            outputStr = "%3s %-10s %-30s %6s" % (bonusSumStr, p.name(), znakStr, houseStr)
+
+            if include_bonuses != INCLUDE_BONUSES.NONE:
+                outputStr += '   # %s ' % allBonuses
+            #if include_bonuses == INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY:
+            #    outputStr = '[!ASC] ' + outputStr
             print(outputStr)
 
-            #print("%3s %-10s %-30s; %4s; %-2s; %4s; %2d; %90s;" % (
-            #    bonusSumStr, p.name(), znakStr, houseStr, p.third or '-', speedStr, speedBonus, allBonuses))
+
+def runHoroscope(input_filename, incl_bonuses=0, import_raw=False):
+    hor = Horoscope()
+
+    if import_raw:
+        with open(input_filename, "rt", encoding='utf8') as horoscope_file:
+            for line in horoscope_file:
+                hor.parseRaw(line)
+
+    else: # parse preformatted file
+        with open(input_filename, "rt", encoding='utf8') as horoscope_file:
+            for line in horoscope_file:
+                hor.parseLine(line)
+
+    hor.calcHouses()
+    hor.findAspects()
+    hor.calcNatals()
+
+    hor.printoutPlanets(incl_bonuses)
+
+    if import_raw:
+        output_filename = input_filename.split('.')[0] + '.EXP.txt'
+        with open(output_filename, "wt", encoding='utf8') as output_file:
+            hor.exportFile(output_file)
+
+    return hor
 
 
 if __name__ == '__main__':
@@ -397,17 +535,12 @@ if __name__ == '__main__':
         pretty(Config.PLANET_ZNAK_ROLES)
     print("SOL to LUNA orbis:", cfg.MAJOR_ORBS[PLANET.SOL][PLANET.LUNA], cfg.MAJOR_ORBS[PLANET.LUNA][PLANET.SOL])
 
-    hor = Horoscope()
+    IMPORT_RAW = False  # True
+    INCL_BONUSES = INCLUDE_BONUSES.ALL  # NONE
+    #INCL_BONUSES = INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY
+    INPUT_FILENAME = "data/_example.txt"
+    #INPUT_FILENAME = "data/D.txt"
+    #INPUT_FILENAME = data/NT-0630.txt"
+    #INPUT_FILENAME = "data/SB-0550-raw.txt"
 
-    with open("data/_example.txt", "rt", encoding='utf8') as horoscope_file:
-    #with open("data/NT-0630.txt", "rt", encoding='utf8') as horoscope_file:
-    #with open("data/SB-0640.txt", "rt", encoding='utf8') as horoscope_file:
-        for line in horoscope_file:
-            hor.parseLine(line)
-
-    hor.calcHouses()
-    hor.findAspects()
-    hor.calcNatals()
-
-    INCLUDE_BONUSES = True
-    hor.printoutPlanets(INCLUDE_BONUSES)
+    hor = runHoroscope(INPUT_FILENAME, incl_bonuses=INCL_BONUSES, import_raw=IMPORT_RAW)

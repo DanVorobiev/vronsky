@@ -4,6 +4,8 @@
 verbose = False
 #verbose = True
 
+verbose2 = True
+
 PREV_TAG = "PREV"
 
 BAD_GRADUS = -1
@@ -193,6 +195,7 @@ class NATAL:
     DATE_TIME = 'нат'
     VOSHOD = 'восход'
     ZAKAT = 'закат'
+    NAME = '(имя)'
 
 NATAL_TAGS = dict([(v, k) for k, v in NATAL.__dict__.items() if not k.startswith('_')])
 
@@ -227,11 +230,16 @@ def hasGradus(token):
     return token.find('*') > 0 or token.find('°') > 0
 
 
+class INCLUDE_BONUSES:
+    NONE = 0
+    ALL = 1
+    ASC_INDEPENDENT_ONLY = -1
+
 class BONUS:
     SPEED = 'spd'
     CARDINAL_ZNAK = 'крит°(к)'
     FIXED_ZNAK = 'крит°(ф)'
-    MUTABLE_ZNAK = 'крит°(м))'
+    MUTABLE_ZNAK = 'крит°(м)'
     GENDER = 'пол'
     STIHIA = 'стихия'  # в знаке своего стихийного тригона (напр. огонь для Солнца/Марса/Юпитера)
     OWN_HOUSE = 'свой/дом'  # в своём поле (default доме, считая от равноденствия - напр. Марс в I доме = Овен (управ.Марс)
@@ -255,7 +263,22 @@ class BONUS:
     HOUR_DOMINANT = 'дом/часа'
     PLANET_GRADUS = '(°)'
 
+    BLIZH_MC = 'ближ/MC'
+    UGOL_ASC = 'угол(АSC)'
+    UGOL_DSC = 'угол(DSC)'
+    UGOL_MC = 'угол(MC)'
+    UGOL_IC = 'угол(IC)'
+
     _ZNAK_BONUS_TYPES = (CARDINAL_ZNAK, MUTABLE_ZNAK, FIXED_ZNAK)
     _HOUSE_ROLES = (DOMICILE, EXALTATION, EXILE, FALL)
 
+    _ASC_INDEPENDENT = (
+        SPEED, CARDINAL_ZNAK, FIXED_ZNAK, MUTABLE_ZNAK, GENDER, STIHIA, RETRO,
+        DOMICILE, EXALTATION, EXILE, FALL, YEAR_DOMINANT, WEEKDAY_DOMINANT,
+        LEV_GRADUS, VESY_GRADUS, TELEC_GRADUS, KOMBUSTA, EXALT_GRADUS, TERMY, OWN_GRADUS, PLANET_GRADUS
+    )
 
+    _ASC_DEPENDENT = {HOUSE_THIRD, OWN_HOUSE, ASC_DOMINANT, MC_DOMINANT, HOUR_DOMINANT,
+                      BLIZH_MC, UGOL_ASC, UGOL_DSC, UGOL_MC, UGOL_IC}
+
+4
