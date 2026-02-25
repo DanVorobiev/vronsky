@@ -677,12 +677,12 @@ if __name__ == '__main__':
     IMPORT_RAW = False
     INCL_BONUSES = INCLUDE_BONUSES.ALL  # NONE
     #INCL_BONUSES = INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY
-    #INPUT_FILENAME = "data/_example.txt"
-    INPUT_FILENAME = "data/D.txt"
+    INPUT_FILENAME = "data/SV.txt"
+    #INPUT_FILENAME = "data/D.txt"
 
     hor = runHoroscope(INPUT_FILENAME, incl_bonuses=INCL_BONUSES, import_raw=IMPORT_RAW)
 
     if 1: # run transits parsing & diagnostics?
-        TRANSIT_FILENAME = "data/transit/D-transit-25.02.26.txt"
-        #TRANSIT_FILENAME = "data/transit/O-transit.txt"
+        TRANSIT_FILENAME = "data/transit/SV-transit.txt"
+        # TRANSIT_FILENAME = "data/transit/D-transit-25.02.26.txt"
         hor.runTransits(TRANSIT_FILENAME)
