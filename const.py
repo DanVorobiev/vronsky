@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+GRAD = '°'
+
 verbose = False
 #verbose = True
 
-verbose2 = True
+verbose2 = False
+verbose3 = False
 
 PREV_TAG = "PREV"
 
@@ -124,6 +127,7 @@ class PLANET:
     IC = _FOURTH
 
     _KUSPIDS = [ASC, SECOND, THIRD, IC, FIFTH, SIXTH, DSC, EIGHTH, NINTH, MC, ELEVENTH, TWELVETH]
+    _SECONDARY_KUSPIDS = [SECOND, THIRD, IC, FIFTH, SIXTH, DSC, EIGHTH, NINTH, ELEVENTH, TWELVETH]
 
     _MERCURIES = {MERCURY, MERCURY_RETRO}
     _ANY_EVIL = {MARS, MARS_RETRO, SATURN, SATURN_RETRO, URAN, URAN_RETRO, PLUTON, PLUTON_RETRO}
@@ -163,6 +167,7 @@ ASPECT_VALUES = [v for k,v in ASPECT.__dict__.items() if not k.startswith('_')]
 
 MINOR_ASPECT_ORBIS = 3.0
 LESSER_KUSPID_ORBIS = 2.0
+TRANSIT_ORBIS = 2.0
 
 ZNAK_ARC = 30.0
 
@@ -212,12 +217,21 @@ def orbz(znak1, gradus1, znak2, gradus2):
     return orb(absGradus(znak1, gradus1), absGradus(znak2, gradus2))
 
 
-def formatOrb(abs_gradus):
+def formatOrb(gradus_value, minutes_only=False):
+    sign = "-" if gradus_value < 0 else ""
+    abs_gradus = abs(gradus_value)
     gradus = int(abs_gradus)
     mins_secs = (abs_gradus - gradus) * 60
-    mins = int(mins_secs)
-    secs = round((mins_secs - mins) * 60)
-    return("%d°%02d'%02d\"" % (gradus, mins, secs))
+    if minutes_only:
+        mins = round(mins_secs)
+        if mins < 60:
+            return sign + "%d°%02d'" % (gradus, mins)
+        else:
+            return sign + "%d°" % (gradus + 1)
+    else:
+        mins = int(mins_secs)
+        secs = round((mins_secs - mins) * 60)
+        return sign + "%d°%02d'%02d\"" % (gradus, mins, secs)
 
 
 def newline():

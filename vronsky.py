@@ -14,6 +14,14 @@ class Horoscope:
     def __init__(self):
         self.planets = {}  # PLANET.SOL(int): Planet
         self.houses = {}  # PLANET.ASC(int): Planet with extra "house" fields (notably .size)
+        self.aspects = []
+        self.aspectRating = []
+        self.maxAspectRating = 0.0
+        self.transits = {}
+        self.transitAspects = []
+        self.trAspectRating = []
+        self.maxTrAspectRating = 0.0
+        self._transit_planet_found = {}
         self.natDate = None
         self.natTime = None
         self.natHour = None
@@ -33,12 +41,21 @@ class Horoscope:
     def parseRaw(self, line):
         if line.startswith("//") or line.startswith("#"):
             return
-        elif line.startswith(PREV_TAG):
+        line = line.replace('R Венера', 'Венера')  # значок Венеры преобразуется в R, который путается со знаком Retro
+        if line.startswith(PREV_TAG):
             self.parsePlanetSpeedRaw(line)
         elif hasGradus(line):
             self.parsePlanetRaw(line)
         else:
             self.parseNatals(line)
+
+    def parseTransitRaw(self, line):
+        if line.startswith("//") or line.startswith("#"):
+            return
+        line = line.replace('R Венера', 'Венера')  # значок Венеры преобразуется в R, который путается со знаком Retro
+        line = line.replace('(', '').replace(')', '')  # в строке транзитов масса лишних скобок
+        if hasGradus(line):
+            self.parsePlanetTransitRaw(line)
 
     def parseNatals(self, line):
         tokens = line.split()
@@ -180,6 +197,13 @@ class Horoscope:
         if verbose2: print(elems)
         self.parseRawChunks(elems, self._doParsePlanetSpeed, None)
 
+    def parsePlanetTransitRaw(self, line):
+        elems = line.split()
+        if (not elems) or len(elems) < 3:
+            return
+        if verbose2: print(elems)
+        self.parseRawChunks(elems, self._parsePlanet, self._addPlanetTransit)
+
     def parseRawChunks(self, elems, parseChunksCallback, addPlanetCallback):
         chunk = []
         isPlanetChunk = False
@@ -226,6 +250,18 @@ class Horoscope:
         print("PARSED:", p)
         self.planets[p.planet] = p
 
+    def _addPlanetTransit(self, p):
+        natal_planet = self.planets.get(p.planet) or self.planets.get(p.planet ^ PLANET._RETRO)
+        header = "PARSED TRANSIT:"
+        if natal_planet and abs(natal_planet.abs_gradus - p.abs_gradus) < 0.0001:
+            header = "// PARSED TRANSIT (natal):"
+        print(header, p, natal_planet)
+        # в строке транзитов планеты дублируются (натал - транзит) => skip 1st parsed transit, store 2nd
+        if not self._transit_planet_found.get(natal_planet.planet):
+            self._transit_planet_found[natal_planet.planet] = True
+            return
+        self.transits[p.planet] = p
+
     def parsePlanet(self, line):
         elems = line.split()
         if (not elems) or len(elems) < 3:
@@ -265,6 +301,26 @@ class Horoscope:
 
         print("day SPEED: %s (%s) avg:%s %s %s" % (formatOrb(p.day_speed), speedStr,
                                                    formatOrb(avg_spd or 0), p, prev))
+
+    def calcTransitHouses(self):
+        planets = [planet for pid, planet in self.transits.items() if pid not in PLANET._KUSPIDS]
+        for house_id in PLANET._KUSPIDS:
+            next_id = house_id + 1 if house_id + 1 <= PLANET._HOUSE_LAST else PLANET._HOUSE_FIRST
+            house, next = self.planets[house_id], self.planets[next_id]
+            house.size = size = orb(house.abs_gradus, next.abs_gradus)
+
+            # для всех еще не посчитанных планет:
+            for planet in planets[:]:
+                # учитываем, что градусы зациклены, так что проще посмотреть орбы от начала и конца дома
+                start_orb = orb(planet.abs_gradus, house.abs_gradus)
+                end_orb = orb(planet.abs_gradus, next.abs_gradus)
+                if start_orb < size and end_orb < size:
+                    # номер дома
+                    planet.house = house_id - PLANET._HOUSE_BASE  # 1..12
+                    planet.house_gradus = start_orb
+
+                    # ок, посчитали дом => удаляем из непосчитанных
+                    planets.remove(planet)
 
     def calcHouses(self):
         newline()
@@ -389,17 +445,18 @@ class Horoscope:
             winner_planet = self.planets.get(winner)
             self.checkAspectBonus(winner_planet, mc, ASPECT._CLOSEST_MC, actual_orbis)
 
-    def findAspects(self):
-        self.aspects = []
-        planets = self.planets.values()
-        aspects = ASPECT_VALUES
+    def findAspects(self, planets1, planets2, addAspectBonuses=True, header='ASPECT: ', orbis_override=None):
+        aspects = []
         last_planet = None
-        for p1 in planets:
-            for p2 in planets:
+        for p1 in planets1:
+            for p2 in planets2:
                 arc = p1.orb(p2)
                 p1nr, p2nr = p1.get_non_retro(), p2.get_non_retro()
-                ORBS = Config.MAJOR_ORBS
-                table_orbis = ORBS.get(p1nr, {}).get(p2nr, None) or ORBS.get(p2nr, {}).get(p1nr, None)
+                if orbis_override:
+                    table_orbis = orbis_override
+                else:
+                    ORBS = Config.MAJOR_ORBS
+                    table_orbis = ORBS.get(p1nr, {}).get(p2nr, None) or ORBS.get(p2nr, {}).get(p1nr, None)
                 isKuspid1 = p1nr in PLANET._KUSPIDS
                 isKuspid2 = p2nr in PLANET._KUSPIDS
                 if (table_orbis is None) and (isKuspid1 or isKuspid2) and not(isKuspid1 and isKuspid2):
@@ -414,11 +471,15 @@ class Horoscope:
                     orbis = table_orbis if aspect not in ASPECT._MINORS else min(table_orbis, MINOR_ASPECT_ORBIS)
                     actual_orbis = abs(arc - aspect)
                     if actual_orbis < orbis:
-                        self.aspects.append((p1, p2, aspect, arc, actual_orbis, orbis))
+                        aspects.append((p1, p2, aspect, arc, actual_orbis, orbis))
                         if p1 != last_planet: newline()
-                        print("ASPECT: %s %s %s %d %0.3f %0.1f" % (p1.name(), aname, p2.name(), aspect, arc, orbis))
+                        print("%s%s %s %s (%d %0.3f %0.1f)  %s" % (
+                            header, p1.name(), aname, p2.name(),
+                            aspect, arc, orbis, formatOrb(actual_orbis, minutes_only=True))
+                        )
                         last_planet = p1
                         self.checkAspectBonus(p1, p2, aspect, actual_orbis)
+        return aspects
 
     def checkAspectBonus(self, p1, p2, aspect, actual_orbis):
         for bonus in Config.BONUS_ASPECTS:
@@ -428,14 +489,21 @@ class Horoscope:
                                      bonus.from_orbis, actual_orbis, bonus.to_orbis)
                     p1.set_bonus(bonus.bonus_type, bonus.bonus_points)
 
-    def rateAspects(self):
-        self.aspectRating = []
-        self.maxAspectRating = 0.0
-        for p1, p2, aspect, arc, actual_orbis, max_orbis in self.aspects:
-            p1b = p1.sum_bonuses()
+    def rateAspects(self, aspects, scaleAspectRating=0.0, header="", topCount=30, noDuplicates=True, noKuspids=False):
+        maxAspectRating = scaleAspectRating
+        aspectRating = []
+        for p1, p2, aspect, arc, actual_orbis, max_orbis in aspects:
+            # p1 could be transit => bonuses must be taken from main self.planets[]
+            natal_p1 = self.planets.get(p1.planet) or self.planets.get(p1.planet ^ PLANET._RETRO)
+            p1b = natal_p1.sum_bonuses()
             p2b = p2.sum_bonuses()
-            if (p2b > p1b) or (p1b == p2b and p1.planet > p2.planet):
+            if noDuplicates and ((p2b > p1b) or (p1b == p2b and p1.get_non_retro() > p2.get_non_retro())):
+                if verbose: print("(!) REMOVE DUPLICATE:", p1, p1b, aspect, p2, p2b)
                 continue  # все аспекты в списке по 2 раза, исключаем дубликаты; оставляем вариант сила1 >= сила2
+            # для вторичных куспидов (кроме ASC и MC) оставляем только соединения (~вход в новый дом)
+            if noKuspids and (p2.planet in PLANET._SECONDARY_KUSPIDS) and (aspect != ASPECT.CON):
+                if verbose: print("(!) REMOVE KUSPID:", p1, aspect, p2)
+                continue
             w_aspect = Config.ASPECT_WEIGHT.get(aspect, 0)
             p1w = Config.PLANET_WEIGHT.get(p1.get_non_retro())
             p2w = Config.PLANET_WEIGHT.get(p2.get_non_retro())
@@ -443,22 +511,27 @@ class Horoscope:
             p_add, ps_deg = AC.get('ADD_PLANET_BALL'), AC.get('PLANET_SUM_DEGREE')
             mult = AC.get('ASPECT_EXACTNESS_EXP_DEGREE_MULT')
             if not p1w or not p2w or not w_aspect:
+                if verbose: print("(!) REMOVE:", p1, p1w, aspect, p2, p2w, w_aspect)
                 continue
             ps = pow((abs(p1b) + p_add) * (abs(p2b) + p_add), ps_deg)
-            r = actual_orbis / max_orbis
+            r = abs(actual_orbis) / max_orbis
             ow = math.exp(mult * r)
             cw = math.sqrt(p1w * p2w)
             rating = w_aspect * ps * ow * cw
-            self.maxAspectRating = max(self.maxAspectRating, rating)
-            self.aspectRating.append((rating, p1.name(), p2.name(), (p1b, p2b), cw, aspect, (actual_orbis, max_orbis)))
+            maxAspectRating = max(maxAspectRating, rating)
+            aspectRating.append((rating, p1.name(), p2.name(), (p1b, p2b), cw, aspect, (actual_orbis, max_orbis)))
 
-        self.aspectRating = sorted(self.aspectRating, reverse=True)
-        print("-------------\nTOP-30 ASPECTS (max %0.3f):" % self.maxAspectRating)
-        for i, (rating, p1name, p2name, (p1b, p2b), cw, aspect, (orb, max_orb)) in enumerate(self.aspectRating[:30]):
-            print("[%0.1f] %s(%s) %s %s(%s) orb=%d°" % (
-                rating/self.maxAspectRating*10, p1name, signed(p1b), Config.ASPECT_2_NAME[aspect],
-                p2name, signed(p2b), round(orb)
+        aspectRating = sorted(aspectRating, reverse=True)
+        if scaleAspectRating < 0.001:
+            scaleAspectRating = maxAspectRating
+        print("-------------\nTOP-%d %s ASPECTS (max %0.3f, defMax %0.3f):" % (
+            topCount, header, maxAspectRating, scaleAspectRating))
+        for i, (rating, p1name, p2name, (p1b, p2b), cw, aspect, (orb, max_orb)) in enumerate(aspectRating[:topCount]):
+            print("[%0.1f] %s%s(%s) %s %s(%s)  %s" % (
+                rating/scaleAspectRating*10, header, p1name, signed(p1b), Config.ASPECT_2_NAME[aspect],
+                p2name, signed(p2b), formatOrb(orb, minutes_only=True)
             ))
+        return aspectRating, maxAspectRating
 
     def exportFile(self, output_file):
         output_file.write("%s\n" % self.natName or "???")
@@ -486,6 +559,12 @@ class Horoscope:
             outputStr = "PREV  %s  %s  %s\n" % (p.name(), znak, formatOrb(p.prev_gradus))
             output_file.write(outputStr)
 
+    def parseTransitFile(self, input_filename):
+        self._transit_planet_found = {}
+        with open(input_filename, "rt", encoding='utf8') as horoscope_file:
+            for line in horoscope_file:
+                hor.parseTransitRaw(line)
+
     def printoutPlanets(self, include_bonuses=INCLUDE_BONUSES.ALL):
         "Уран; Рыбы 4*39';	II;	3/3; FAST; 2"
         print("--- PLANETS: ---")
@@ -508,8 +587,7 @@ class Horoscope:
             else:
                 bonus_types = None
             allBonuses = p.get_bonus_str(bonus_types)
-            bonusSum = p.sum_bonuses(bonus_types)
-            bonusSumStr = ('+' if bonusSum > 0 else '') + str(bonusSum)
+            bonusSumStr = signed(p.sum_bonuses(bonus_types))
 
             outputStr = "%3s %-10s %-30s %6s" % (bonusSumStr, p.name(), znakStr, houseStr)
 
@@ -518,6 +596,31 @@ class Horoscope:
             #if include_bonuses == INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY:
             #    outputStr = '[!ASC] ' + outputStr
             print(outputStr)
+
+    def printoutTransitPlanets(self):
+        print("--- TRANSIT PLANETS: ---")
+        for pid, p in self.transits.items():
+            natal_p = self.planets.get(pid) or self.planets.get(pid ^ PLANET._RETRO)
+
+            znak = Config.ZNAK_2_NAME[p.znak]
+            znakStr = "%s %s" % (znak, formatOrb(p.gradus))
+
+            house = toRoman(p.house) if p.house else '-'
+            bonusSumStr = signed(natal_p.sum_bonuses())
+
+            outputStr = "(T)%s(%s) -- %s, %s дом (%d°)" % (p.name(), bonusSumStr, znakStr, house, int(p.house_gradus))
+            print(outputStr)
+
+    def runTransits(hor, input_filename):
+        hor.parseTransitFile(TRANSIT_FILENAME)
+        hor.calcTransitHouses()
+        hor.transitAspects = hor.findAspects(
+            hor.transits.values(), hor.planets.values(),
+            addAspectBonuses=False, header="TRANSIT ASPECT: (T)", orbis_override=TRANSIT_ORBIS
+        )
+        hor.printoutTransitPlanets()
+        hor.trAspectRating, hor.maxTrAspectRating = hor.rateAspects(
+            hor.transitAspects, hor.maxAspectRating, header="(T)", topCount=100, noDuplicates=False, noKuspids=True)
 
 
 def runHoroscope(input_filename, incl_bonuses=0, import_raw=False):
@@ -534,9 +637,9 @@ def runHoroscope(input_filename, incl_bonuses=0, import_raw=False):
                 hor.parseLine(line)
 
     hor.calcHouses()
-    hor.findAspects()
+    hor.aspects = hor.findAspects(hor.planets.values(), hor.planets.values())
     hor.calcNatals()
-    hor.rateAspects()
+    hor.aspectRating, hor.maxAspectRating = hor.rateAspects(hor.aspects)
     hor.calcNatals()
 
     hor.printoutPlanets(incl_bonuses)
@@ -570,13 +673,16 @@ if __name__ == '__main__':
         pretty(Config.PLANET_ZNAK_ROLES)
     print("SOL to LUNA orbis:", cfg.MAJOR_ORBS[PLANET.SOL][PLANET.LUNA], cfg.MAJOR_ORBS[PLANET.LUNA][PLANET.SOL])
 
-    #IMPORT_RAW = False
-    IMPORT_RAW = True
+    #IMPORT_RAW = True
+    IMPORT_RAW = False
     INCL_BONUSES = INCLUDE_BONUSES.ALL  # NONE
     #INCL_BONUSES = INCLUDE_BONUSES.ASC_INDEPENDENT_ONLY
-    INPUT_FILENAME = "data/_example.txt"
-    #INPUT_FILENAME = "data/D-1700.EXP.txt"
-    #INPUT_FILENAME = data/NT-0630.txt"
-    #INPUT_FILENAME = "data/SB-0550-raw.txt"
+    #INPUT_FILENAME = "data/_example.txt"
+    INPUT_FILENAME = "data/D.txt"
 
     hor = runHoroscope(INPUT_FILENAME, incl_bonuses=INCL_BONUSES, import_raw=IMPORT_RAW)
+
+    if 1: # run transits parsing & diagnostics?
+        TRANSIT_FILENAME = "data/transit/D-transit-25.02.26.txt"
+        #TRANSIT_FILENAME = "data/transit/O-transit.txt"
+        hor.runTransits(TRANSIT_FILENAME)

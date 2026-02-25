@@ -265,14 +265,12 @@ class Config:
         for planet_, planet_weight in vronskyCfg.PLANET_WEIGHT.items():
             pid = cls.NAME_2_PLANET.get(planet_)
             cls.PLANET_WEIGHT[pid] = planet_weight
-        #if verbose:
-        pretty(['PLANET_WEIGHT:', cls.PLANET_WEIGHT])
+        if verbose: pretty(['PLANET_WEIGHT:', cls.PLANET_WEIGHT])
 
         for aspect_, aspect_weight in vronskyCfg.ASPECT_WEIGHT.items():
             aid = cls.NAME_2_ASPECT.get(aspect_)
             cls.ASPECT_WEIGHT[aid] = aspect_weight
-        #if verbose:
-        pretty(['ASPECT_WEIGHT:', cls.PLANET_WEIGHT])
+        if verbose: pretty(['ASPECT_WEIGHT:', cls.PLANET_WEIGHT])
 
         cls.ASPECT_COEFFS = vronskyCfg.ASPECT_COEFFS
 
@@ -298,6 +296,7 @@ class Config:
 
     @classmethod
     def parse_gradus(self, gradus_):
+        if verbose3: print("gradus_", gradus_)
         gradus = 0.0
         rest = gradus_
         try:
@@ -322,7 +321,7 @@ class Config:
                 minutes = float(rest[:-1])
         except:
             pass
-        if verbose: print("min/rest", minutes, repr(rest), gradus)
+        if verbose3: print("min/rest", minutes, repr(rest), gradus)
         if minutes is not None:
             gradus += minutes/60.0
         seconds = None
@@ -331,7 +330,7 @@ class Config:
                 seconds = float(rest[:-1])
         except:
             pass
-        if verbose: print("sec/rest", seconds, repr(rest), gradus)
+        if verbose3: print("sec/rest", seconds, repr(rest), gradus)
         if seconds is not None:
             gradus += seconds/3600.0
         return gradus
